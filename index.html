@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quran Memorizer — مصحف الحفظ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a1628">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 🌙 Background Pattern Overlay -->
+  <div class="bg-pattern"></div>
+
+  <!-- 📖 Main App Container -->
+  <div class="app-container">
+
+    <!-- 🕌 Header -->
+    <header class="header">
+      <div class="header-ornament top-ornament"></div>
+      <div class="header-content">
+        <div class="logo-area">
+          <div class="logo-icon">﷽</div>
+          <h1 class="app-title">Quran Memorizer</h1>
+          <p class="app-subtitle">مصحف الحفظ</p>
+        </div>
+        <div class="progress-summary">
+          <div class="progress-stat">
+            <span class="stat-number" id="pagesViewed">0</span>
+            <span class="stat-label">Pages Visited</span>
+          </div>
+          <div class="progress-stat">
+            <span class="stat-number" id="totalPages">604</span>
+            <span class="stat-label">Total Pages</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-ornament bottom-ornament"></div>
+    </header>
+
+    <!-- 🎯 Main Content -->
+    <main class="main-content">
+
+      <!-- 📄 Mushaf Page Viewer -->
+      <section class="page-viewer">
+        <div class="page-frame">
+          <!-- Global Index Progress Bar (Moved to top of viewing box) -->
+          <div id="globalIndexProgressContainer" class="global-index-progress-container page-top-progress hidden">
+            <div class="global-index-header">
+              <span class="global-index-title">Voice Engine Initialization</span>
+              <span id="globalIndexProgressText" class="global-index-text">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="globalIndexProgressBar" class="progress-bar-fill global-index-fill" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="page-border">
+            <div class="page-corner tl"></div>
+            <div class="page-corner tr"></div>
+            <div class="page-corner bl"></div>
+            <div class="page-corner br"></div>
+            <div class="page-image-container" id="pageImageContainer">
+              <img id="pageImage" class="page-image" alt="Quran Page" src="" loading="eager">
+              <!-- Beautiful Text Overlay -->
+              <div id="pageTextOverlay" class="page-text-overlay"></div>
+              <!-- Memory test overlay (shown when memory mode is active) -->
+              <div id="memoryOverlay" class="memory-overlay">
+                <div class="memory-overlay-bg"></div>
+                <div id="memoryCircles" class="memory-circles"></div>
+                <div class="memory-banner">
+                  <span class="memory-icon">🏵️</span>
+                  <span>Memory Test Mode</span>
+                  <div class="peek-controls">
+                    <button id="peekFadedBtn" class="peek-btn">Peek Faded</button>
+                    <button id="peekClearBtn" class="peek-btn">Peek Clear</button>
+                    <button id="resetLayoutBtn" class="peek-btn" title="Snap back to exact text positions">Reset Positions</button>
+                    <button id="resetAllLayoutBtn" class="peek-btn" title="Snap back all pages to exact text positions">Reset All</button>
+                  </div>
+                </div>
+              </div>
+              <!-- Loading overlay -->
+              <div id="pageLoading" class="page-loading">
+                <div class="loading-spinner"></div>
+                <span>Loading Page...</span>
+              </div>
+            </div>
+          </div>
+          <!-- Page number indicator -->
+          <div class="page-number-badge">
+            <span class="page-label">Page</span>
+            <span id="currentPageDisplay">1</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 🔢 Ayah Controls Sidebar -->
+      <aside class="ayah-sidebar">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">Ayahs on This Page</h2>
+          <p class="sidebar-subtitle" id="sidebarSubtitle">Tap the ayah number to reveal its text</p>
+          
+
+          <div class="sidebar-progress">
+            <div class="progress-bar-track">
+              <div id="pageProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+            </div>
+            <span id="pageProgressText" class="progress-text">0 / 0</span>
+          </div>
+        </div>
+        <div id="ayahList" class="ayah-list">
+          <!-- Ayah cards will be dynamically populated -->
+          <div class="ayah-list-empty">
+            <div class="empty-icon">📖</div>
+            <p>Loading ayahs...</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- System Toast for background tasks -->
+      <div id="systemToast" class="system-toast hidden">
+        <div class="toast-spinner"></div>
+        <span id="systemToastText">Building global index...</span>
+      </div>
+
+      <!-- 🔊 Listen Mode Waveform & Indicator -->
+      <div id="waveformContainer" class="waveform-container hidden">
+        <div class="waveform-bars">
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+          <div class="waveform-bar"></div>
+        </div>
+        <div id="listenIndicator" class="listen-indicator hidden">
+          <span class="listen-label">Detected</span>
+          <span class="listen-word">—</span>
+          <span class="listen-confidence">—</span>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 🎛️ Bottom Controls -->
+    <footer class="bottom-controls">
+      <div class="controls-inner">
+        <button id="firstPageBtn" class="control-btn" title="First Page" aria-label="First Page">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+        </button>
+        <button id="prevPageBtn" class="control-btn primary" title="Previous Page" aria-label="Previous Page">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </button>
+
+        <div class="page-jumper" role="group" aria-label="Jump to page">
+          <span class="jumper-btn">Page</span>
+          <input type="number" id="pageInput" class="page-input" min="1" max="604" value="1" placeholder="1" aria-label="Page number">
+          <button id="goToPageBtn" class="go-btn" aria-label="Go to page">Go</button>
+        </div>
+
+        <button id="nextPageBtn" class="control-btn primary" title="Next Page" aria-label="Next Page">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </button>
+        <button id="lastPageBtn" class="control-btn" title="Last Page" aria-label="Last Page">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M5.59 7.41L10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+        </button>
+
+        <div class="controls-divider"></div>
+
+        <button id="memoryModeBtn" class="action-btn memory-mode-btn" title="Toggle Memory Test Mode" aria-label="Toggle Memory Test Mode" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 11.5c0 5.25-4.5 9.5-9.5 9.5S2 16.75 2 11.5 6.5 2 11.5 2c1.43 0 2.79.32 4 .89L13.95 6C13.18 5.68 12.36 5.5 11.5 5.5 7.91 5.5 5 8.41 5 12s2.91 6.5 6.5 6.5 6.5-2.91 6.5-6.5c0-1.55-.55-2.98-1.46-4.11l1.49-1.49C19.46 7.96 21 9.6 21 11.5zM11.5 8.5c-.83 0-1.5.67-1.5 1.5v3c0 .55.22 1.05.59 1.41l2.7 2.7 1.41-1.41-2.7-2.7V10c0-.83-.67-1.5-1.5-1.5z"/></svg>
+          <span>Memory Mode</span>
+        </button>
+        <button id="showAllBtn" class="action-btn reveal-all-btn" title="Reveal all ayahs on this page" aria-label="Reveal all ayahs">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          <span>Reveal All</span>
+        </button>
+        <button id="resetPageBtn" class="action-btn reset-btn" title="Reset all ayahs on this page" aria-label="Reset this page">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          <span>Reset Page</span>
+        </button>
+        <button id="toggleTextBtn" class="action-btn toggle-text-btn" title="Toggle Uthmani Text Overlay" aria-label="Toggle Text">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/></svg>
+          <span>Text Mode</span>
+        </button>
+        <button id="listenModeBtn" class="action-btn listen-mode-btn" title="Detect Voice & Highlight" aria-label="Listen Mode">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          <span>Listen</span>
+        </button>
+        <button id="pauseListenBtn" class="action-btn pause-listen-btn hidden" title="Pause/Resume Listening" aria-label="Pause Listening">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          <span>Pause</span>
+        </button>
+
+        <div class="controls-divider"></div>
+
+        <button id="surahBtn" class="action-btn surah-btn" title="Browse Surahs" aria-label="Browse Surahs">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+          <span>Surahs</span>
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- 🕌 Surah Index Panel (right side) -->
+  <div id="surahPanelOverlay" class="surah-panel-overlay"></div>
+  <aside id="surahPanel" class="surah-panel" role="dialog" aria-label="Surah Index" aria-modal="true">
+    <div class="surah-panel-header">
+      <h2 class="surah-panel-title">
+        <span class="surah-panel-icon">📖</span>
+        Surah Index
+      </h2>
+      <button id="surahPanelClose" class="surah-panel-close" aria-label="Close surah index">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="surah-panel-search">
+      <input type="text" id="surahSearch" class="surah-search-input" placeholder="Search surah..." aria-label="Search surahs">
+    </div>
+    <div class="surah-sort-controls">
+      <button class="sort-btn active" data-sort="default" onclick="window.__setSurahSort('default')" title="Default order (by revelation)">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>
+        <span>Default</span>
+      </button>
+      <button class="sort-btn" data-sort="shortest" onclick="window.__setSurahSort('shortest')" title="Shortest surahs first">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+        <span>Shortest</span>
+      </button>
+      <button class="sort-btn" data-sort="longest" onclick="window.__setSurahSort('longest')" title="Longest surahs first">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M7 14l5-5 5 5z"/></svg>
+        <span>Longest</span>
+      </button>
+    </div>
+    <div id="surahList" class="surah-list"></div>
+  </aside>
+
+  <!-- 🕌 Keyboard shortcuts hint -->
+  <div class="shortcuts-hint">
+    <span>← → Navigate</span>
+    <span class="hint-dot">·</span>
+    <span>R Reset Page</span>
+    <span class="hint-dot">·</span>
+    <span>A Reveal All</span>
+    <span class="hint-dot">·</span>
+    <span>M Memory Mode</span>
+    <span class="hint-dot">·</span>
+    <span>S Surahs</span>
+  </div>
+
+  <script src="script.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.warn('Service Worker registration failed', err));
+      });
+    }
+  </script>
+</body>
+</html>
