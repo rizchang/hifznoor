@@ -2343,7 +2343,7 @@ body.light-mode .listen-word {
 .page-text-overlay:not(.active) .word.practice-success {
   background: transparent !important;
   border: none !important;
-  color: #2bd997 !important; /* Make revealed text visible */
+  color: #000000 !important; /* Make revealed text visible in clean black */
   box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
@@ -2354,7 +2354,7 @@ body.light-mode .listen-word {
 body.light-mode .page-text-overlay:not(.active) .word.practice-success {
   background: transparent !important;
   border: none !important;
-  color: #0d4f40 !important; /* Make revealed text visible */
+  color: #000000 !important; /* Make revealed text visible in clean black */
   box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
@@ -2936,7 +2936,7 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 .page-text-overlay:not(.active) .word.timed-test-success {
   background: transparent !important;
   border: none !important;
-  color: #2bd997 !important; /* Make revealed text visible */
+  color: #000000 !important; /* Make revealed text visible in clean black */
   box-shadow: none !important;
   text-shadow: none !important;
   border-radius: 4px;
@@ -2948,7 +2948,7 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 body.light-mode .page-text-overlay:not(.active) .word.timed-test-success {
   background: transparent !important;
   border: none !important;
-  color: #0d4f40 !important; /* Make revealed text visible */
+  color: #000000 !important; /* Make revealed text visible in clean black */
   box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
@@ -4056,13 +4056,13 @@ body.light-mode .about-main-text {
 }
 
 .ayah-start-hint {
-  --hint-glow-color: rgba(0, 230, 118, 0.95);
-  --hint-glow-color-subtle: rgba(0, 230, 118, 0.45);
-  --hint-color: #00ff88; /* Glowing electric spring green in dark mode */
+  --hint-glow-color: rgba(255, 119, 0, 0.95);
+  --hint-glow-color-subtle: rgba(255, 119, 0, 0.4);
+  --hint-color: #ff7700; /* Glowing electric bright orange in dark mode */
   
   position: absolute;
   font-family: var(--font-arabic);
-  font-size: 2.8cqw; /* Slightly larger and more prominent */
+  font-size: 3.5cqw; /* Make font of hint words bigger */
   font-weight: 800;
   cursor: pointer;
   user-select: none;
@@ -4083,55 +4083,50 @@ body.light-mode .about-main-text {
 }
 
 .ayah-start-hint:hover {
-  transform: scale(1.18);
+  transform: scale(1.22);
   color: #fff;
   text-shadow: 
-    0 0 8px #00ff88, 
-    0 0 20px #00e676, 
+    0 0 8px #ff7700, 
+    0 0 20px #ff9100, 
     0 0 35px rgba(255, 255, 255, 1.0);
 }
 
-/* Light mode overrides - elegant emerald green */
+/* Light mode overrides - vibrant burnt orange */
 body.light-mode .ayah-start-hint {
-  --hint-glow-color: rgba(26, 107, 90, 0.85);
-  --hint-glow-color-subtle: rgba(26, 107, 90, 0.4);
-  --hint-color: var(--teal-light); /* Vibrant teal/green in light mode */
+  --hint-glow-color: rgba(211, 84, 0, 0.85);
+  --hint-glow-color-subtle: rgba(211, 84, 0, 0.35);
+  --hint-color: #d35400; /* Rich burnt orange in light mode */
 }
 
 body.light-mode .ayah-start-hint:hover {
-  color: #00ff88;
+  color: #ff7700;
   text-shadow: 
     0 0 8px var(--hint-glow-color), 
     0 0 20px var(--hint-glow-color), 
-    0 0 35px rgba(0, 230, 118, 0.7);
+    0 0 35px rgba(255, 119, 0, 0.7);
 }
 
 /* Adjustments for pages 1 and 2 (which have 15% padding/margins) */
 .ayah-start-hints-container.page-1-2 .ayah-start-hint {
-  font-size: 3.6cqw;
+  font-size: 4.2cqw; /* Scaled up hint words for page 1 and 2 */
 }
 
 @keyframes hint-pulse {
-  0% {
-    opacity: 0.75;
+  0%, 100% {
+    opacity: 0.8;
     text-shadow: 
       0 0 6px var(--hint-glow-color), 
       0 0 12px var(--hint-glow-color), 
       0 0 20px var(--hint-glow-color-subtle);
+    transform: scale(1) rotate(-0.5deg);
   }
   50% {
     opacity: 1;
     text-shadow: 
-      0 0 12px var(--hint-glow-color), 
-      0 0 24px var(--hint-glow-color), 
-      0 0 40px var(--hint-glow-color-subtle);
-  }
-  100% {
-    opacity: 0.75;
-    text-shadow: 
-      0 0 6px var(--hint-glow-color), 
-      0 0 12px var(--hint-glow-color), 
-      0 0 20px var(--hint-glow-color-subtle);
+      0 0 14px var(--hint-glow-color), 
+      0 0 28px var(--hint-glow-color), 
+      0 0 45px var(--hint-glow-color-subtle);
+    transform: scale(1.08) rotate(0.5deg); /* Animated scaling/breathing and gentle wobble rotation */
   }
 }
 
