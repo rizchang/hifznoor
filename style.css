@@ -4081,11 +4081,11 @@ body.light-mode .about-main-text {
   will-change: opacity, text-shadow;
 }
 
-/* Right-pointing arrow to the left of the hint word */
+/* Left-pointing arrow to the right of the hint word */
 .ayah-start-hint::before {
-  content: '→';
+  content: '←';
   position: absolute;
-  left: -25px; /* Positioned to the left pointing right */
+  right: -25px; /* Positioned to the right pointing left */
   top: 50%;
   transform: translateY(-50%);
   color: var(--hint-color);
@@ -4147,7 +4147,7 @@ body.light-mode .ayah-start-hint:hover {
     opacity: 0.75;
   }
   50% {
-    transform: translateY(-50%) translateX(5px); /* gently nudge right towards word */
+    transform: translateY(-50%) translateX(-5px); /* gently nudge left towards word */
     opacity: 1;
   }
 }
