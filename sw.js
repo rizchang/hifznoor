@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hifznoor-cache-v25';
+const CACHE_NAME = 'hifznoor-cache-v26';
 
 const ASSETS = [
   './',

@@ -53,7 +53,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a1628">
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body class="light-mode">
 
@@ -74,6 +74,9 @@
         </div>
         <button id="howItWorksBtn" class="how-it-works-btn" title="How HifzNoor works">
           <span class="how-btn-icon">💡</span> How It Works
+        </button>
+        <button id="feedbackBtn" class="feedback-trigger-btn" title="Give Feedback">
+          <span class="feedback-btn-icon">💬</span> Feedback
         </button>
         <div class="progress-summary">
           <div class="progress-stat">
@@ -617,10 +620,76 @@
     </div>
   </div>
 
-  <script src="quran_english.js?v=25"></script>
-  <script src="quran_pages_db.js?v=25"></script>
-  <script src="quran_page_lines.js?v=25"></script>
-  <script src="script.js?v=25"></script>
+  <!-- 💬 Feedback Modal -->
+  <div id="feedbackModal" class="feedback-modal hidden" role="dialog" aria-label="Share Feedback" aria-modal="true">
+    <div class="feedback-modal-backdrop"></div>
+    <div class="feedback-modal-content">
+      <button id="closeFeedbackModalBtn" class="feedback-modal-close" aria-label="Close modal">&times;</button>
+      
+      <div class="feedback-modal-header">
+        <span class="feedback-modal-badge">FEEDBACK</span>
+        <h2 class="feedback-modal-title">💬 Share Your Feedback</h2>
+        <p class="feedback-modal-subtitle">Your suggestions help make HifzNoor a better Quran memorization companion.</p>
+      </div>
+      
+      <form id="feedbackForm" class="feedback-form">
+        <div class="feedback-modal-body">
+          
+          <!-- Hifz Memorization Impact Question -->
+          <div class="feedback-field">
+            <label class="feedback-label">Did HifzNoor help you in memorizing the Holy Quran?</label>
+            <div class="feedback-radio-group">
+              <label class="feedback-radio-label">
+                <input type="radio" name="helped" value="yes-tremendously" required>
+                <span class="custom-radio"></span>
+                <span>Yes, it helped me tremendously! 🟢</span>
+              </label>
+              <label class="feedback-radio-label">
+                <input type="radio" name="helped" value="yes-slowly">
+                <span class="custom-radio"></span>
+                <span>Yes, it is helping me slowly. 🟡</span>
+              </label>
+              <label class="feedback-radio-label">
+                <input type="radio" name="helped" value="not-yet">
+                <span class="custom-radio"></span>
+                <span>Not yet, but I am practicing. ⚪</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- Improvement Suggestions -->
+          <div class="feedback-field">
+            <label for="feedbackSuggestions" class="feedback-label">How can we improve the app?</label>
+            <textarea id="feedbackSuggestions" name="suggestions" class="feedback-textarea" rows="3" placeholder="What features or designs would make HifzNoor better for you?" required></textarea>
+          </div>
+          
+          <!-- Bugs / Issues -->
+          <div class="feedback-field">
+            <label for="feedbackBugs" class="feedback-label">Report any bugs or errors you encountered (optional)</label>
+            <textarea id="feedbackBugs" name="bugs" class="feedback-textarea" rows="2" placeholder="Let us know if you found any layout issues, speech recognition bugs, etc."></textarea>
+          </div>
+          
+          <!-- User Info (Optional) -->
+          <div class="feedback-field">
+            <label for="feedbackContact" class="feedback-label">Your Name / Email (optional)</label>
+            <input type="text" id="feedbackContact" name="contact" class="feedback-input" placeholder="So we can reach out to you if needed">
+          </div>
+          
+        </div>
+        
+        <div class="feedback-modal-footer">
+          <button type="submit" id="submitFeedbackBtn" class="feedback-submit-btn">
+            <span>Send Feedback</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="quran_english.js?v=26"></script>
+  <script src="quran_pages_db.js?v=26"></script>
+  <script src="quran_page_lines.js?v=26"></script>
+  <script src="script.js?v=26"></script>
   <script defer src="/_vercel/insights/script.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

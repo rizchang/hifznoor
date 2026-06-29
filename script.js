@@ -210,6 +210,11 @@
     howItWorksModal: $('#howItWorksModal'),
     closeHowModalBtn: $('#closeHowModalBtn'),
     closeHowModalOkBtn: $('#closeHowModalOkBtn'),
+    feedbackBtn: $('#feedbackBtn'),
+    feedbackModal: $('#feedbackModal'),
+    closeFeedbackModalBtn: $('#closeFeedbackModalBtn'),
+    feedbackForm: $('#feedbackForm'),
+    submitFeedbackBtn: $('#submitFeedbackBtn'),
   };
 
   // ===================== PERSISTENCE =====================
@@ -5388,6 +5393,85 @@ function stopListening() {
       
       const backdrop = els.howItWorksModal.querySelector('.how-modal-backdrop');
       if (backdrop) backdrop.addEventListener('click', closeHowModal);
+    }
+    if (els.feedbackBtn && els.feedbackModal) {
+      els.feedbackBtn.addEventListener('click', () => {
+        els.feedbackModal.classList.remove('hidden');
+      });
+      
+      const closeFeedbackModal = () => {
+        els.feedbackModal.classList.add('hidden');
+        if (els.feedbackForm) els.feedbackForm.reset();
+      };
+      
+      if (els.closeFeedbackModalBtn) {
+        els.closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
+      }
+      
+      const backdrop = els.feedbackModal.querySelector('.feedback-modal-backdrop');
+      if (backdrop) {
+        backdrop.addEventListener('click', closeFeedbackModal);
+      }
+      
+      if (els.feedbackForm) {
+        els.feedbackForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          
+          if (els.submitFeedbackBtn) {
+            els.submitFeedbackBtn.disabled = true;
+            els.submitFeedbackBtn.classList.add('loading');
+            els.submitFeedbackBtn.innerHTML = '<span>Sending...</span>';
+          }
+          
+          const formData = new FormData(els.feedbackForm);
+          const data = {
+            helped: formData.get('helped'),
+            suggestions: formData.get('suggestions'),
+            bugs: formData.get('bugs') || 'None reported',
+            contact: formData.get('contact') || 'Anonymous',
+            _subject: 'New HifzNoor Feedback Submission'
+          };
+          
+          // Obfuscated email endpoint to prevent spam bot harvesting
+          const parts = ['hifznoormemorytool', 'gmail.com'];
+          const url = 'https://formsubmit.co/ajax/' + parts.join('@');
+          
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
+          })
+          .then(res => res.json())
+          .then(resData => {
+            if (els.submitFeedbackBtn) {
+              els.submitFeedbackBtn.classList.remove('loading');
+              els.submitFeedbackBtn.classList.add('success');
+              els.submitFeedbackBtn.innerHTML = '<span>Sent Successfully! ✓</span>';
+            }
+            showToast("💬 Jazakum Allahu Khairan! Your feedback was sent successfully.", true);
+            setTimeout(() => {
+              closeFeedbackModal();
+              if (els.submitFeedbackBtn) {
+                els.submitFeedbackBtn.disabled = false;
+                els.submitFeedbackBtn.classList.remove('success');
+                els.submitFeedbackBtn.innerHTML = '<span>Send Feedback</span>';
+              }
+            }, 1800);
+          })
+          .catch(err => {
+            console.error('Feedback submission failed:', err);
+            if (els.submitFeedbackBtn) {
+              els.submitFeedbackBtn.disabled = false;
+              els.submitFeedbackBtn.classList.remove('loading');
+              els.submitFeedbackBtn.innerHTML = '<span>Try Again</span>';
+            }
+            showToast("⚠️ Submission failed. Please try again.", false);
+          });
+        });
+      }
     }
     if (els.listenLangSelect) {
       els.listenLangSelect.addEventListener('change', (e) => {
