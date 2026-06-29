@@ -5448,6 +5448,14 @@ body.light-mode .feedback-modal-content {
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.12), 0 0 20px rgba(13, 79, 64, 0.05);
 }
 
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
 .feedback-modal-close {
   position: absolute;
   top: 20px;
