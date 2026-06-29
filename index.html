@@ -53,7 +53,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a1628">
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body class="light-mode">
 
@@ -72,6 +72,9 @@
           <h1 class="app-title">HifzNoor</h1>
           <p class="app-subtitle">Quran Memorizer — مصحف الحفظ</p>
         </div>
+        <button id="howItWorksBtn" class="how-it-works-btn" title="How HifzNoor works">
+          <span class="how-btn-icon">💡</span> How It Works
+        </button>
         <div class="progress-summary">
           <div class="progress-stat">
             <span class="stat-number" id="pagesViewed">1</span>
@@ -558,10 +561,66 @@
     </div>
   </div>
 
-  <script src="quran_english.js?v=23"></script>
-  <script src="quran_pages_db.js?v=23"></script>
-  <script src="quran_page_lines.js?v=23"></script>
-  <script src="script.js?v=23"></script>
+  <!-- 💡 How It Works Explanatory Modal -->
+  <div id="howItWorksModal" class="how-modal hidden" role="dialog" aria-label="How HifzNoor Works" aria-modal="true">
+    <div class="how-modal-backdrop"></div>
+    <div class="how-modal-content">
+      <button id="closeHowModalBtn" class="how-modal-close" aria-label="Close modal">&times;</button>
+      
+      <div class="how-modal-header">
+        <span class="how-modal-badge">GUIDE</span>
+        <h2 class="how-modal-title">💡 How HifzNoor Works</h2>
+        <p class="how-modal-subtitle">Master the art of Quran memorization using our modern interactive tools</p>
+      </div>
+      
+      <div class="how-modal-body">
+        <div class="how-timeline">
+          
+          <div class="how-step">
+            <div class="how-step-num">1</div>
+            <div class="how-step-detail">
+              <h3>📖 Listen & Read Along (Auditory Layer)</h3>
+              <p>Click on any Ayah on the Mushaf page to highlight it and play professional audio recitations. Use the loop controls at the bottom to repeat single verses, a page, or active thematic groups to absorb the Tajweed and rhythm.</p>
+            </div>
+          </div>
+          
+          <div class="how-step">
+            <div class="how-step-num">2</div>
+            <div class="how-step-detail">
+              <h3>🙈 Hide Text (Active Recall)</h3>
+              <p>Click <strong>Hide Text</strong> or <strong>Hide Selection</strong> in the sidebar. This overlays a clean parchment cover on top of the text, forcing you to recite from memory. If you get stuck, look to the right margin—animated blue arrow hints (<code>←</code>) point directly to the hidden verse's starting word to guide you.</p>
+            </div>
+          </div>
+          
+          <div class="how-step">
+            <div class="how-step-num">3</div>
+            <div class="how-step-detail">
+              <h3>🎙️ Live Speech Recognition (Self-Correction)</h3>
+              <p>Click the microphone button and recite. The speech recognition engine matches your voice offline. Correctly recited words automatically reveal themselves in clean black ink right over the calligraphy. Any mispronounced or omitted words remain hidden.</p>
+            </div>
+          </div>
+          
+          <div class="how-step">
+            <div class="how-step-num">4</div>
+            <div class="how-step-detail">
+              <h3>✍️ Tracing & Handwriting (Motor Memory)</h3>
+              <p>Toggle <strong>Trace & Write Mode</strong> to draw directly on top of the page. Adjust opacity to trace the Uthmani letters, cementing the shapes, spelling, and spelling of the verses into your permanent visual memory.</p>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      
+      <div class="how-modal-footer">
+        <button id="closeHowModalOkBtn" class="how-modal-btn">Ok, Let's Start!</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="quran_english.js?v=24"></script>
+  <script src="quran_pages_db.js?v=24"></script>
+  <script src="quran_page_lines.js?v=24"></script>
+  <script src="script.js?v=24"></script>
   <script defer src="/_vercel/insights/script.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

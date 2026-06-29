@@ -206,6 +206,10 @@
     traceOpacityDisplay: $('#traceOpacityDisplay'),
     micPermissionModal: $('#micPermissionModal'),
     closeMicModalBtn: $('#closeMicModalBtn'),
+    howItWorksBtn: $('#howItWorksBtn'),
+    howItWorksModal: $('#howItWorksModal'),
+    closeHowModalBtn: $('#closeHowModalBtn'),
+    closeHowModalOkBtn: $('#closeHowModalOkBtn'),
   };
 
   // ===================== PERSISTENCE =====================
@@ -5369,6 +5373,21 @@ function stopListening() {
     els.listenModeBtn.addEventListener('click', toggleListenMode);
     if (els.closeMicModalBtn) {
       els.closeMicModalBtn.addEventListener('click', hideMicPermissionModal);
+    }
+    if (els.howItWorksBtn && els.howItWorksModal) {
+      els.howItWorksBtn.addEventListener('click', () => {
+        els.howItWorksModal.classList.remove('hidden');
+      });
+      
+      const closeHowModal = () => {
+        els.howItWorksModal.classList.add('hidden');
+      };
+      
+      if (els.closeHowModalBtn) els.closeHowModalBtn.addEventListener('click', closeHowModal);
+      if (els.closeHowModalOkBtn) els.closeHowModalOkBtn.addEventListener('click', closeHowModal);
+      
+      const backdrop = els.howItWorksModal.querySelector('.how-modal-backdrop');
+      if (backdrop) backdrop.addEventListener('click', closeHowModal);
     }
     if (els.listenLangSelect) {
       els.listenLangSelect.addEventListener('change', (e) => {
