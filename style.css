@@ -4056,9 +4056,9 @@ body.light-mode .about-main-text {
 }
 
 .ayah-start-hint {
-  --hint-glow-color: rgba(255, 119, 0, 0.95);
-  --hint-glow-color-subtle: rgba(255, 119, 0, 0.4);
-  --hint-color: #ff7700; /* Glowing electric bright orange in dark mode */
+  --hint-glow-color: rgba(0, 210, 255, 0.9);
+  --hint-glow-color-subtle: rgba(0, 210, 255, 0.4);
+  --hint-color: #00d2ff; /* Glowing electric bright blue in dark mode */
   
   position: absolute;
   font-family: var(--font-arabic);
@@ -4070,40 +4070,55 @@ body.light-mode .about-main-text {
   color: var(--hint-color);
   text-shadow: 
     0 0 6px var(--hint-glow-color), 
-    0 0 15px var(--hint-glow-color), 
-    0 0 25px var(--hint-glow-color-subtle);
-  animation: hint-pulse 1.8s infinite ease-in-out;
+    0 0 15px var(--hint-glow-color-subtle);
+  animation: hint-pulse 2.2s infinite ease-in-out;
   transition: all 0.3s ease;
   z-index: 10;
-  transform: scale(1);
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  will-change: opacity, text-shadow;
+}
+
+/* Right-pointing arrow to the left of the hint word */
+.ayah-start-hint::before {
+  content: '→';
+  position: absolute;
+  left: -25px; /* Positioned to the left pointing right */
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--hint-color);
+  font-size: 0.95em;
+  font-weight: 900;
+  font-family: sans-serif;
+  pointer-events: none;
+  text-shadow: 0 0 6px var(--hint-glow-color);
+  animation: arrow-slide 2.2s infinite ease-in-out;
+  will-change: transform, opacity;
 }
 
 .ayah-start-hint:hover {
-  transform: scale(1.22);
   color: #fff;
   text-shadow: 
-    0 0 8px #ff7700, 
-    0 0 20px #ff9100, 
+    0 0 8px #00d2ff, 
+    0 0 20px #00aaff, 
     0 0 35px rgba(255, 255, 255, 1.0);
 }
 
-/* Light mode overrides - vibrant burnt orange */
+/* Light mode overrides - vibrant electric royal blue */
 body.light-mode .ayah-start-hint {
-  --hint-glow-color: rgba(211, 84, 0, 0.85);
-  --hint-glow-color-subtle: rgba(211, 84, 0, 0.35);
-  --hint-color: #d35400; /* Rich burnt orange in light mode */
+  --hint-glow-color: rgba(0, 85, 255, 0.8);
+  --hint-glow-color-subtle: rgba(0, 85, 255, 0.3);
+  --hint-color: #0055ff; /* Rich electric blue in light mode */
 }
 
 body.light-mode .ayah-start-hint:hover {
-  color: #ff7700;
+  color: #00d2ff;
   text-shadow: 
     0 0 8px var(--hint-glow-color), 
     0 0 20px var(--hint-glow-color), 
-    0 0 35px rgba(255, 119, 0, 0.7);
+    0 0 35px rgba(0, 210, 255, 0.7);
 }
 
 /* Adjustments for pages 1 and 2 (which have 15% padding/margins) */
@@ -4113,20 +4128,27 @@ body.light-mode .ayah-start-hint:hover {
 
 @keyframes hint-pulse {
   0%, 100% {
-    opacity: 0.8;
+    opacity: 0.85;
     text-shadow: 
-      0 0 6px var(--hint-glow-color), 
-      0 0 12px var(--hint-glow-color), 
-      0 0 20px var(--hint-glow-color-subtle);
-    transform: scale(1) rotate(-0.5deg);
+      0 0 5px var(--hint-glow-color), 
+      0 0 10px var(--hint-glow-color-subtle);
   }
   50% {
     opacity: 1;
     text-shadow: 
-      0 0 14px var(--hint-glow-color), 
-      0 0 28px var(--hint-glow-color), 
-      0 0 45px var(--hint-glow-color-subtle);
-    transform: scale(1.08) rotate(0.5deg); /* Animated scaling/breathing and gentle wobble rotation */
+      0 0 10px var(--hint-glow-color), 
+      0 0 20px var(--hint-glow-color-subtle);
+  }
+}
+
+@keyframes arrow-slide {
+  0%, 100% {
+    transform: translateY(-50%) translateX(0);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(-50%) translateX(5px); /* gently nudge right towards word */
+    opacity: 1;
   }
 }
 
