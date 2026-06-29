@@ -8,17 +8,39 @@
   'use strict';
 
   // ===================== CONSTANTS =====================
+  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                         window.innerWidth < 1024 || 
+                         ('ontouchstart' in window) || 
+                         (navigator.maxTouchPoints > 0);
+
   const TOTAL_PAGES = 604;
   const API_BASE = 'https://api.alquran.cloud/v1';
   const STORAGE_KEY = 'quran-memorizer-progress';
   const COORDS_STORAGE_KEY = 'quran-memorizer-coords';
-  const IMAGE_DIR = 'Mushaf7';
+  const IMAGE_DIR = 'Mushaf';
   const CSV_PATH = 'quran_english.csv';
+
+  const RECITER_NAMES = {
+    'ar.husary': 'Mahmoud Al-Husary (الحصري) - Default',
+    'ar.alafasy': 'Mishary Alafasy (العفاسي)',
+    'ar.minshawi': 'Siddiq El-Minshawi (المنشاوي)',
+    'ar.abdulbasitmurattal': 'Abdul Basit (عبد الباسط)',
+    'ar.ghamadi': 'Saad Al-Ghamdi (الغامدي)',
+    'ar.sudais': 'Abdur-Rahman As-Sudais (السديس)',
+    'ar.mahermuaiqly': 'Maher Al-Muaiqly (المعيقلي)',
+    'ar.hudhaify': 'Ali Al-Hudhaify (الحذيفي)',
+    'ar.ajamy': 'Ahmad Al-Ajamy (العجمي)',
+    'ar.shatri': 'Abu Bakr Al-Shatri (الشاطري)',
+    'ur.khan': 'Shamshad Khan (Urdu Translation - اردو)',
+    'en.walk': 'Ibrahim Walk (English Translation)'
+  };
 
   // ===================== STATE =====================
   const state = {
     currentPage: 1,
     ayahs: [],                    // Array of ayah data for current page
+    quranPagesDb: window.quranPagesDb || null,           // Local page ayahs database (loaded via script or fetch)
+    quranPageLines: window.quranPageLines || null,         // Local page lines database (loaded via script or fetch)
     customQuranData: null,        // Custom text from UthmaniScriptQuran.doc (when converted to JSON)
     revealedAyahs: new Set(),     // Ayah numbers revealed this session on current page
     pagesViewed: new Set(),       // Page numbers that have been visited at least once
@@ -29,8 +51,11 @@
     surahSortMode: 'default',     // 'default' | 'shortest' | 'longest'
     isMemoryMode: false,
     isTextMode: false,
+    isTextLightMode: true,
     isListenMode: false,
     isListenPaused: false,        // Tracks if the microphone is temporarily paused
+    listenLang: 'ar-SA',          // Default speech language (Arabic)
+    reciter: 'ar.husary',        // Default reciter
     globalIndexBuilt: false,      // Tracks if the massive voice engine has been initialized
     globalWords: [],              // Full Quran words index for global detection
     globalWordMap: null,          // Map<string, Array<{page, ayahNum, wordIdx}>> for O(1) instant lookups
@@ -43,9 +68,42 @@
     ayahCoordinates: [],
     coordsOverrides: {},
     lastTranscriptTime: 0,        // For debouncing transcript processing
+    isTranslationPinned: false,   // Keeps the translation panel open on click, closes on hover exit
     highestConfidenceWord: '',    // Track the best-matched word for UI feedback
     pageLocked: false,            // When true, system stays on this page
+    isPageHidden: false,          // When true, cover the calligraphy with a solid rectangle overlay
+    isTextHidden: false,          // When true, mask/hide the page Uthmani text overlay (acting like Close Book Mode)
+    isSelectionHidden: false,     // When true, mask/hide only the selected ayah range block-wise
     lastCurrentPageMatchTime: 0,  // Timestamp of the most recent match on the current page (for time-based lock decay)
+    teacherState: {
+      activeGroup: null,          // Currently active group
+      isPlaying: false,           // Is teacher loop currently playing
+      isPracticeMode: false,      // Is practice recitation mode active
+      showStartHints: true,       // Whether to show starting word hints in close book mode
+      isGlobalPageLoop: false,    // Is global page reinforcement loop active
+      jobQueue: [],               // Queue of looping jobs
+      currentJobIdx: 0,
+      currentAyahIdxInJob: 0,
+      audioPlayer: null,          // Audio element
+      recitedWordIdxs: new Set(), // Set of successfully recited word indexes in practice mode
+      thematicGroups: [],         // Generated thematic groups for current page
+      timedMode: {
+        active: false,
+        groupId: null,
+        phase: 'study',           // 'study' or 'test'
+        timeLeft: 0,
+        rangeText: '',
+        timerInterval: null
+      }
+    },
+    // --- Handwriting Trace & Write Mode State ---
+    isTraceMode: false,
+    traceColor: '#3b82f6', // Sapphire Blue default
+    traceWidth: 3,
+    traceIsEraser: false,
+    pageStrokes: {}, // pageNum -> array of strokes
+    traceOpacity: 8, // Default shading opacity (8%)
+    canvasEventsWired: false
   };
 
   // ===================== DOM REFS =====================
@@ -74,7 +132,9 @@
     memoryModeBtn: $('#memoryModeBtn'),
     resetPageBtn: $('#resetPageBtn'),
     toggleTextBtn: $('#toggleTextBtn'),
+    themeToggleBtn: $('#themeToggleBtn'),
     listenModeBtn: $('#listenModeBtn'),
+    listenLangSelect: $('#listenLangSelect'),
     pauseListenBtn: $('#pauseListenBtn'),
     surahBtn: $('#surahBtn'),
     surahPanel: $('#surahPanel'),
@@ -87,11 +147,65 @@
     resetLayoutBtn: $('#resetLayoutBtn'),
     resetAllLayoutBtn: $('#resetAllLayoutBtn'),
     pageTextOverlay: $('#pageTextOverlay'),
+    ayahStartHintsContainer: $('#ayahStartHintsContainer'),
+    toggleHintsBtn: $('#toggleHintsBtn'),
+    toggleHintsText: $('#toggleHintsText'),
+    wordTranslationPanel: $('#wordTranslationPanel'),
     systemToast: $('#systemToast'),
     systemToastText: $('#systemToastText'),
     globalIndexProgressContainer: $('#globalIndexProgressContainer'),
     globalIndexProgressBar: $('#globalIndexProgressBar'),
     globalIndexProgressText: $('#globalIndexProgressText'),
+    // Teacher Mode DOM Refs
+    tabAyahs: $('#tabAyahs'),
+    tabTeacher: $('#tabTeacher'),
+    tabAbout: $('#tabAbout'),
+    ayahsSection: $('#ayahsSection'),
+    teacherSection: $('#teacherSection'),
+    aboutSection: $('#aboutSection'),
+    teacherGroupList: $('#teacherGroupList'),
+    sidebarAudioPlayer: $('#sidebarAudioPlayer'),
+    playerAyahLabel: $('#playerAyahLabel'),
+    playerPlayBtn: $('#playerPlayBtn'),
+    playerCloseBtn: $('#playerCloseBtn'),
+    playerProgressBarTrack: $('#playerProgressBarTrack'),
+    playerProgressBarFill: $('#playerProgressBarFill'),
+    playerTimeCurrent: $('#playerTimeCurrent'),
+    playerTimeTotal: $('#playerTimeTotal'),
+    topStatusBanner: $('#topStatusBanner'),
+    topStatusIcon: $('#topStatusIcon'),
+    topStatusText: $('#topStatusText'),
+    reciterSelect: $('#reciterSelect'),
+    playerReciter: $('#playerReciter'),
+    themeVisualizerCard: $('#themeVisualizerCard'),
+    themeVisualizerArt: $('#themeVisualizerArt'),
+    themeVisualizerTitle: $('#themeVisualizerTitle'),
+    themeVisualizerDesc: $('#themeVisualizerDesc'),
+    globalPageLoopBtn: $('#globalPageLoopBtn'),
+    globalTimedStart: $('#globalTimedStart'),
+    globalTimedEnd: $('#globalTimedEnd'),
+    globalTimedBtn: $('#globalTimedBtn'),
+    hidePageBtn: $('#hidePageBtn'),
+    hidePageText: $('#hidePageText'),
+    hideTextBtn: $('#hideTextBtn'),
+    hideTextText: $('#hideTextText'),
+    hideSelectionBtn: $('#hideSelectionBtn'),
+    hideSelectionText: $('#hideSelectionText'),
+    
+    // --- Handwriting Trace & Write Mode References ---
+    traceCanvas: $('#traceCanvas'),
+    toggleTraceModeBtn: $('#toggleTraceModeBtn'),
+    traceControls: $('#traceControls'),
+    tracePenBtn: $('#tracePenBtn'),
+    traceEraserBtn: $('#traceEraserBtn'),
+    traceUndoBtn: $('#traceUndoBtn'),
+    traceClearBtn: $('#traceClearBtn'),
+    traceWidthSlider: $('#traceWidthSlider'),
+    traceWidthDisplay: $('#traceWidthDisplay'),
+    traceOpacitySlider: $('#traceOpacitySlider'),
+    traceOpacityDisplay: $('#traceOpacityDisplay'),
+    micPermissionModal: $('#micPermissionModal'),
+    closeMicModalBtn: $('#closeMicModalBtn'),
   };
 
   // ===================== PERSISTENCE =====================
@@ -111,6 +225,12 @@
         state.coordsOverrides = coordsData;
       }
     } catch (e) {}
+
+    // Always default to Light Mode on page load
+    state.isTextLightMode = true;
+    
+    // Load handwriting tracing strokes
+    loadTraceData();
   }
 
   function saveProgress() {
@@ -121,6 +241,28 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       // localStorage might be full or unavailable
+    }
+  }
+
+  function saveTraceData() {
+    try {
+      localStorage.setItem('hifznoor_trace_strokes', JSON.stringify(state.pageStrokes));
+    } catch (e) {
+      console.warn("Could not save trace data to localStorage:", e);
+    }
+  }
+
+  function loadTraceData() {
+    try {
+      const data = localStorage.getItem('hifznoor_trace_strokes');
+      if (data) {
+        state.pageStrokes = JSON.parse(data);
+      } else {
+        state.pageStrokes = {};
+      }
+    } catch (e) {
+      console.error("Failed to load trace data:", e);
+      state.pageStrokes = {};
     }
   }
 
@@ -137,6 +279,11 @@
 
   // ===================== API =====================
   async function fetchPageAyahs(pageNum) {
+    // 🚀 Local-first retrieval (0ms network delay)
+    if (state.quranPagesDb && state.quranPagesDb[pageNum]) {
+      return state.quranPagesDb[pageNum];
+    }
+
     const url = `${API_BASE}/page/${pageNum}/quran-uthmani`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -145,26 +292,15 @@
       throw new Error('Invalid API response');
     }
 
-    let ayahs = json.data.ayahs;
-
-    // If the UthmaniScriptQuran.doc was successfully parsed, inject its exact text and positioning!
-    if (state.customQuranData && state.customQuranData.extractedAyahs) {
-      ayahs = ayahs.map(apiAyah => {
-        const customText = findMatchingAyahInDoc(apiAyah, state.customQuranData.extractedAyahs);
-        if (customText) {
-          return { ...apiAyah, text: customText };
-        }
-        return apiAyah;
-      });
-    }
-
-    return ayahs;
+    return json.data.ayahs;
   }
 
   // ===================== PARALLEL PAGE LOADER =====================
   // Fetches text and image in parallel for maximum speed.
   // CV marker detection is deferred until memory mode is first used.
   let _memoryModeEverActivated = false;
+  let individualAudioPlayer = null;
+  let playingAyahNum = null;
 
   async function loadPage(pageNum) {
     pageNum = Math.max(1, Math.min(TOTAL_PAGES, pageNum));
@@ -181,37 +317,75 @@
     state.lastCurrentPageMatchTime = 0;
     state.pendingVoiceNav = false;
 
+    // Reset teacher state
+    stopTeacherLoop();
+    stopTimedMode();
+    state.teacherState.isPracticeMode = false;
+    state.teacherState.activeGroup = null;
+    state.isSelectionHidden = false;
+    if (els.hideSelectionBtn && els.hideSelectionText) {
+      els.hideSelectionBtn.classList.remove('active');
+      els.hideSelectionText.textContent = 'Hide Range';
+    }
+
+    // Clear tracing canvas immediately if trace mode is active
+    if (state.isTraceMode && els.traceCanvas) {
+      const ctx = els.traceCanvas.getContext('2d');
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, els.traceCanvas.width, els.traceCanvas.height);
+      ctx.restore();
+    }
+
+    if (els.wordTranslationPanel) {
+      els.wordTranslationPanel.classList.add('hidden');
+    }
+
     els.currentPageDisplay.textContent = targetPage;
     els.pageInput.value = targetPage;
+    updateGlobalStats();
     
-    if (!state.isTextMode) {
-      els.pageLoading.classList.remove('hidden');
-    }
+    // As text loading is instant, hide spinner immediately
+    els.pageLoading.classList.add('hidden');
     els.pageImage.classList.add('loading');
+    if (els.pageImageContainer) {
+      els.pageImageContainer.classList.toggle('hide-page-active', state.isPageHidden);
+    }
 
     try {
-      // 🚀 PARALLEL: Fetch API text AND start image download simultaneously
-      const [ayahs] = await Promise.all([
-        fetchPageAyahs(targetPage),
-        // Start image loading in parallel with API fetch
-        new Promise((resolve) => {
-          els.pageImage.onload = () => resolve();
-          els.pageImage.onerror = () => resolve(); // Don't reject, let text work
-          els.pageImage.src = `${IMAGE_DIR}/${targetPage}.jpg`;
-          // Timeout after 8s to prevent infinite loading
-          setTimeout(() => resolve(), 8000);
-        })
-      ]);
+      // 🚀 Instant local fetch (0ms network delay)
+      const ayahs = await fetchPageAyahs(targetPage);
 
       if (state.currentPage !== targetPage) return;
 
       state.ayahs = ayahs;
       state.lastPageAyahCount = ayahs.length;
 
-      // Render text immediately
+      // Start the image loading asynchronously in the background without blocking the text display!
+      els.pageImage.onload = () => {
+        if (state.currentPage === targetPage) {
+          els.pageImage.classList.remove('loading');
+          // Re-render memory circles once image size is finalized
+          if (state.isMemoryMode) renderMemoryCircles();
+          updateMushafMasks();
+          if (state.isTraceMode) {
+            resizeTraceCanvas();
+          }
+        }
+      };
+      els.pageImage.onerror = () => {
+        if (state.currentPage === targetPage) {
+          els.pageImage.classList.remove('loading');
+        }
+      };
+      els.pageImage.src = `${IMAGE_DIR}/${targetPage}.jpg`;
+
+      // Render text instantly
       renderAyahList();
       renderPageText();
       updateProgress();
+      populateGlobalTimedRange();
+      renderTeacherGroups();
 
       state.isLoading = false;
       
@@ -220,10 +394,6 @@
         state.pendingTranscript = null;
         setTimeout(() => processTranscript(pending), 30);
       }
-
-      // Image finished (or timed out)
-      els.pageImage.classList.remove('loading');
-      els.pageLoading.classList.add('hidden');
 
       // 🔍 CV marker detection: ONLY run when memory mode is first used, then cache
       if (_memoryModeEverActivated) {
@@ -240,24 +410,14 @@
       if (state.currentPage !== targetPage) return;
       
       els.pageImage.classList.remove('loading');
-      els.pageLoading.classList.add('hidden');
       state.isLoading = false;
 
-      if (err.message === 'IMAGE_ERROR') {
-        els.pageLoading.innerHTML = `
-          <div style="font-size:2rem;opacity:0.5">📄</div>
-          <span>Could not load page ${targetPage}</span>
-        `;
-        els.pageLoading.classList.remove('hidden');
-      } else {
-        els.ayahList.innerHTML = `
-          <div class="ayah-list-empty">
-            <div class="empty-icon">⚠️</div>
-            <p>Could not load ayah data. Check your internet connection.</p>
-            <button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:var(--gold);border:none;border-radius:8px;color:var(--navy);font-weight:600;cursor:pointer">Retry</button>
-          </div>
-        `;
-      }
+      els.ayahList.innerHTML = `
+        <div class="ayah-list-empty">
+          <div class="empty-icon">⚠️</div>
+          <p>Could not load ayah data.</p>
+        </div>
+      `;
       state.ayahs = [];
       state.lastPageAyahCount = 0;
     }
@@ -297,12 +457,20 @@
       card.setAttribute('tabindex', '0');
       card.setAttribute('aria-label', `Ayah ${ayah.numberInSurah} - click to reveal`);
 
+      const isThisAyahPlaying = playingAyahNum === ayah.number;
+
       card.innerHTML = `
         <div class="ayah-card-header">
           <div class="ayah-number-badge">${ayah.numberInSurah}</div>
           <div class="ayah-surah-info">
             ${surahName ? `<span>${surahName}</span>` : ''}
           </div>
+          <button class="ayah-play-btn${isThisAyahPlaying ? ' playing' : ''}" title="Play Recitation" aria-label="Play Recitation">
+            ${isThisAyahPlaying 
+              ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`
+              : `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
+            }
+          </button>
           <div style="margin-left:auto;font-size:0.7rem;color:rgba(201,168,76,0.5)">
             ${isRevealed ? '✓' : ''}
           </div>
@@ -319,6 +487,12 @@
         ` : ''}
       `;
 
+      const playBtn = card.querySelector('.ayah-play-btn');
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        playIndividualAyah(ayah);
+      });
+
       card.addEventListener('click', () => revealAyah(ayah.number));
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -331,6 +505,392 @@
 
     els.ayahList.innerHTML = '';
     els.ayahList.appendChild(fragment);
+  }
+
+  function formatTime(secs) {
+    if (isNaN(secs) || secs === Infinity) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  function getActiveAudioPlayer() {
+    if (state.teacherState.isPlaying && state.teacherState.audioPlayer) {
+      return state.teacherState.audioPlayer;
+    }
+    if (individualAudioPlayer) {
+      return individualAudioPlayer;
+    }
+    return null;
+  }
+
+  function bindAudioPlayer(audioEl, labelText) {
+    if (!audioEl) return;
+    
+    // Update labels and show the widget
+    if (els.playerAyahLabel) {
+      els.playerAyahLabel.textContent = labelText;
+    }
+    if (els.sidebarAudioPlayer) {
+      els.sidebarAudioPlayer.classList.remove('hidden');
+    }
+    if (els.playerReciter) {
+      els.playerReciter.textContent = RECITER_NAMES[state.reciter] || 'Reciter';
+    }
+    
+    // Initial UI state for play/pause
+    if (els.playerPlayBtn) {
+      els.playerPlayBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    }
+    
+    // Reset timeline progress visually for the new track
+    if (els.playerProgressBarFill) {
+      els.playerProgressBarFill.style.width = '0%';
+    }
+    if (els.playerTimeCurrent) {
+      els.playerTimeCurrent.textContent = '0:00';
+    }
+    if (els.playerTimeTotal) {
+      els.playerTimeTotal.textContent = '0:00';
+    }
+
+    // Set duration if already loaded
+    if (audioEl.duration && els.playerTimeTotal) {
+      els.playerTimeTotal.textContent = formatTime(audioEl.duration);
+    }
+    
+    audioEl.addEventListener('loadedmetadata', () => {
+      if (els.playerTimeTotal) {
+        els.playerTimeTotal.textContent = formatTime(audioEl.duration);
+      }
+    });
+    
+    audioEl.addEventListener('timeupdate', () => {
+      if (audioEl.duration) {
+        const pct = (audioEl.currentTime / audioEl.duration) * 100;
+        if (els.playerProgressBarFill) {
+          els.playerProgressBarFill.style.width = `${pct}%`;
+        }
+        if (els.playerTimeCurrent) {
+          els.playerTimeCurrent.textContent = formatTime(audioEl.currentTime);
+        }
+      }
+    });
+    
+    audioEl.addEventListener('play', () => {
+      if (els.playerPlayBtn) {
+        els.playerPlayBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+      }
+    });
+    
+    audioEl.addEventListener('pause', () => {
+      if (els.playerPlayBtn) {
+        els.playerPlayBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+      }
+    });
+  }
+
+  function updateTopStatusBanner(mode, ayah) {
+    if (!els.topStatusBanner || !els.topStatusText || !els.topStatusIcon) return;
+
+    let rangeText = '';
+    if (state.teacherState.activeGroup && state.teacherState.activeGroup.ayahs && state.teacherState.activeGroup.ayahs.length) {
+      const group = state.teacherState.activeGroup;
+      const firstAyah = group.ayahs[0];
+      const lastAyah = group.ayahs[group.ayahs.length - 1];
+      const surahName = firstAyah.surah ? (firstAyah.surah.englishName || `Surah ${firstAyah.surah.number}`) : '';
+      rangeText = `${surahName} (Ayahs ${firstAyah.numberInSurah} - ${lastAyah.numberInSurah})`;
+    }
+
+    if (mode === 'reciting' && ayah) {
+      const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+      els.topStatusIcon.textContent = '🔊';
+      els.topStatusText.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;">
+          <div style="font-size: 0.78rem; color: var(--white-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">Playing Audio Recitation</div>
+          <div style="font-size: 1.6rem; font-weight: 800; color: var(--gold-light); text-shadow: 0 2px 4px rgba(0,0,0,0.6); line-height: 1.2;">
+            ${surahName} : Ayah ${ayah.numberInSurah}
+          </div>
+        </div>
+      `;
+      els.topStatusBanner.classList.remove('hidden');
+    } 
+    else if (mode === 'reciting-teacher' && ayah) {
+      const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+      const themeText = state.teacherState.activeGroup ? state.teacherState.activeGroup.theme : '';
+      
+      let loopBadgeHtml = '';
+      if (state.teacherState.isPlaying && state.teacherState.jobQueue && state.teacherState.jobQueue[state.teacherState.currentJobIdx]) {
+        const job = state.teacherState.jobQueue[state.teacherState.currentJobIdx];
+        const loopCount = job.repeatsTotal - job.repeatsRemaining + 1;
+        // Only animate/pop at the beginning of the group loop (repetition)
+        const shouldAnimate = state.teacherState.currentAyahIdxInJob === 0;
+        const animateClass = shouldAnimate ? 'animate' : '';
+        loopBadgeHtml = `<span class="loop-count-badge ${animateClass}" title="Loop ${loopCount} of ${job.repeatsTotal}">${loopCount}</span>`;
+      }
+      
+      els.topStatusIcon.textContent = '🏵️';
+      els.topStatusText.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;">
+          <div style="font-size: 0.78rem; color: var(--white-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">Teacher Loop Active</div>
+          <div style="font-size: 1.6rem; font-weight: 800; color: var(--gold-light); text-shadow: 0 2px 4px rgba(0,0,0,0.6); line-height: 1.2; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <span>${surahName} : Ayah ${ayah.numberInSurah}</span>
+            ${loopBadgeHtml}
+          </div>
+          ${themeText ? `<div class="top-status-theme-badge" style="margin-top: 2px;">Theme: ${themeText}</div>` : ''}
+        </div>
+      `;
+      els.topStatusBanner.classList.remove('hidden');
+    } 
+    else if (mode === 'listening') {
+      const themeText = state.teacherState.activeGroup ? state.teacherState.activeGroup.theme : '';
+      if (ayah) {
+        const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+        els.topStatusIcon.textContent = '🎙️';
+        els.topStatusText.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;">
+            <div style="font-size: 0.78rem; color: var(--white-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">Listening & Tracking Voice</div>
+            <div style="font-size: 1.8rem; font-weight: 800; color: var(--gold-light); text-shadow: 0 2px 4px rgba(0,0,0,0.6); line-height: 1.2;">
+              ${surahName} : Ayah ${ayah.numberInSurah}
+            </div>
+            ${themeText ? `<div class="top-status-theme-badge" style="margin-top: 2px;">Theme: ${themeText}</div>` : ''}
+          </div>
+        `;
+        els.topStatusBanner.classList.remove('hidden');
+      } else {
+        els.topStatusIcon.textContent = '🎙️';
+        els.topStatusText.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;">
+            <div style="font-size: 0.78rem; color: var(--white-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">Listening Mode Active</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: var(--gold-light); text-shadow: 0 2px 4px rgba(0,0,0,0.6); line-height: 1.2;">
+              Recite to begin matching
+            </div>
+            ${themeText ? `<div class="top-status-theme-badge" style="margin-top: 2px;">Theme: ${themeText}</div>` : ''}
+          </div>
+        `;
+        els.topStatusBanner.classList.remove('hidden');
+      }
+    } 
+    else if (mode === 'timed-study') {
+      const themeText = state.teacherState.activeGroup ? state.teacherState.activeGroup.theme : 'Thematic Group';
+      const timeFormatted = formatCountdownTime(state.teacherState.timedMode.timeLeft);
+      els.topStatusIcon.textContent = '📖';
+      
+      const existingTimer = els.topStatusText.querySelector('.timed-timer-block.study');
+      if (existingTimer) {
+        existingTimer.textContent = timeFormatted;
+      } else {
+        els.topStatusText.innerHTML = `
+          <div class="top-status-timed-banner-content">
+            <div class="timed-banner-info-section">
+              <div class="timed-banner-title study">Nazira Reading Mode</div>
+              <div class="timed-banner-subtitle">Theme: ${themeText}</div>
+            </div>
+            <div class="timed-banner-time-section">
+              <div class="timed-timer-block study">${timeFormatted}</div>
+              <div class="timed-range-block study">${rangeText}</div>
+            </div>
+            <div class="top-status-timed-buttons">
+              <button class="status-action-btn">Skip to Test</button>
+              <button class="status-action-btn stop">Stop Mode</button>
+            </div>
+          </div>
+        `;
+      }
+      els.topStatusBanner.classList.remove('hidden');
+    }
+    else if (mode === 'timed-test') {
+      const themeText = state.teacherState.activeGroup ? state.teacherState.activeGroup.theme : 'Thematic Group';
+      const timeFormatted = formatCountdownTime(state.teacherState.timedMode.timeLeft);
+      els.topStatusIcon.textContent = '🔒';
+      
+      const existingTimer = els.topStatusText.querySelector('.timed-timer-block.test');
+      if (existingTimer) {
+        existingTimer.textContent = timeFormatted;
+      } else {
+        els.topStatusText.innerHTML = `
+          <div class="top-status-timed-banner-content">
+            <div class="timed-banner-info-section">
+              <div class="timed-banner-title test">Close Book Mode</div>
+              <div class="timed-banner-subtitle">Theme: ${themeText}</div>
+            </div>
+            <div class="timed-banner-time-section">
+              <div class="timed-timer-block test">${timeFormatted}</div>
+              <div class="timed-range-block test">${rangeText}</div>
+            </div>
+            <div class="top-status-timed-buttons">
+              <button class="status-action-btn stop">Stop Mode</button>
+            </div>
+          </div>
+        `;
+      }
+      els.topStatusBanner.classList.remove('hidden');
+    }
+    else {
+      // Idle / hide
+      // If listening mode is active, fall back to general listening status instead of hiding!
+      if (state.isListenMode && !state.teacherState.timedMode.active) {
+        if (state.lastMatchedAyahNum) {
+          const matchedAyah = state.ayahs.find(a => a.number === state.lastMatchedAyahNum);
+          updateTopStatusBanner('listening', matchedAyah);
+        } else {
+          updateTopStatusBanner('listening', null);
+        }
+      } else if (!state.teacherState.timedMode.active) {
+        els.topStatusBanner.classList.add('hidden');
+      }
+    }
+  }
+
+  function updateThemeVisualizer(group) {
+    if (!els.themeVisualizerCard || !els.themeVisualizerArt || !els.themeVisualizerTitle || !els.themeVisualizerDesc) return;
+    
+    if (!group) {
+      els.themeVisualizerCard.classList.add('hidden');
+      return;
+    }
+    
+    const theme = group.theme;
+    els.themeVisualizerTitle.textContent = theme.split(" / ")[0]; // English part
+    
+    const firstAyah = group.ayahs[0];
+    const lastAyah = group.ayahs[group.ayahs.length - 1];
+    const rangeText = `Ayahs ${firstAyah.numberInSurah} to ${lastAyah.numberInSurah} of ${firstAyah.surah.englishName}`;
+    els.themeVisualizerDesc.textContent = rangeText;
+    
+    // Select SVG art based on theme keywords
+    let svgArt = '';
+    const cleanTheme = theme.toLowerCase();
+    
+    if (cleanTheme.includes("believ") || cleanTheme.includes("faith") || cleanTheme.includes("righteous")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8c65a" /><stop offset="100%" stop-color="#a8882e" /></linearGradient><radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#e8c65a" stop-opacity="0.4" /><stop offset="100%" stop-color="#e8c65a" stop-opacity="0" /></radialGradient></defs><circle cx="50" cy="50" r="30" fill="url(#glow)" class="pulsing" /><path d="M50 15 L53 35 L73 35 L57 47 L63 67 L50 55 L37 67 L43 47 L27 35 L47 35 Z" fill="url(#goldGrad)" class="rotating" /><circle cx="25" cy="25" r="2" fill="#fff" opacity="0.8" class="pulsing" /><circle cx="75" cy="25" r="2.5" fill="#fff" opacity="0.9" class="pulsing" style="animation-delay: 1s;" /><circle cx="70" cy="70" r="1.5" fill="#fff" opacity="0.6" class="pulsing" style="animation-delay: 0.5s;" /></svg>`;
+    } else if (cleanTheme.includes("disbeliev") || cleanTheme.includes("reject") || cleanTheme.includes("deny")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="stormGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff5555" /><stop offset="100%" stop-color="#881111" /></linearGradient></defs><path d="M50 10 L30 55 L45 55 L35 90 L70 45 L52 45 Z" fill="url(#stormGrad)" class="lightning-strike" /><circle cx="20" cy="30" r="2" fill="#ff5555" opacity="0.5" class="pulsing" /><circle cx="80" cy="70" r="3" fill="#ff5555" opacity="0.3" class="pulsing" style="animation-delay: 0.8s;" /></svg>`;
+    } else if (cleanTheme.includes("creation") || cleanTheme.includes("heavens") || cleanTheme.includes("earth") || cleanTheme.includes("signs")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="earthGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3aa8b1" /><stop offset="100%" stop-color="#161e36" /></linearGradient></defs><circle cx="50" cy="50" r="25" fill="url(#earthGrad)" stroke="rgba(201,168,76,0.3)" stroke-width="1" class="rotating" /><path d="M38 35 Q45 30 50 38 T42 50 T33 42 Z" fill="#2a8b76" opacity="0.6" /><path d="M55 45 Q62 40 65 52 T54 62 Z" fill="#2a8b76" opacity="0.6" /><circle cx="20" cy="20" r="1.5" fill="#fff" class="pulsing" /><circle cx="80" cy="15" r="1" fill="#fff" class="pulsing" style="animation-delay: 0.4s;" /><circle cx="85" cy="75" r="2" fill="#fff" class="pulsing" style="animation-delay: 0.8s;" /><circle cx="15" cy="70" r="1" fill="#fff" class="pulsing" style="animation-delay: 1.2s;" /></svg>`;
+    } else if (cleanTheme.includes("paradise") || cleanTheme.includes("garden")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="paradiseGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2a8b76" /><stop offset="100%" stop-color="#103c30" /></linearGradient></defs><path d="M50 15 C65 30 75 55 50 85 C25 55 35 30 50 15 Z" fill="url(#paradiseGrad)" class="pulsing" /><path d="M50 15 Q55 45 50 85" stroke="rgba(201,168,76,0.5)" stroke-width="2" fill="none" /><path d="M20 75 Q35 70 50 75 T80 75" stroke="#3aa8b1" stroke-width="3" fill="none" opacity="0.7" class="wave" /><path d="M15 83 Q35 78 50 83 T85 83" stroke="#3aa8b1" stroke-width="2" fill="none" opacity="0.5" class="wave" style="animation-delay: 1s;" /></svg>`;
+    } else if (cleanTheme.includes("hell") || cleanTheme.includes("fire") || cleanTheme.includes("punish")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%"><stop offset="0%" stop-color="#ff3300" /><stop offset="50%" stop-color="#ffaa00" /><stop offset="100%" stop-color="#ffff00" stop-opacity="0" /></linearGradient></defs><path d="M15 90 C15 70 30 40 45 20 C48 35 52 50 65 30 C70 50 85 65 85 90 Z" fill="url(#fireGrad)" class="fire" /><path d="M30 90 C35 75 42 60 48 45 C52 55 55 65 60 55 C63 70 70 80 70 90 Z" fill="#ff3300" opacity="0.6" class="fire" style="animation-delay: 0.3s;" /></svg>`;
+    } else if (cleanTheme.includes("mercy") || cleanTheme.includes("forgiv") || cleanTheme.includes("merciful")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><radialGradient id="sun" cx="50%" cy="40%" r="50%"><stop offset="0%" stop-color="#fff" /><stop offset="30%" stop-color="#e8c65a" /><stop offset="100%" stop-color="#e8c65a" stop-opacity="0" /></radialGradient></defs><circle cx="50" cy="40" r="30" fill="url(#sun)" class="pulsing" /><path d="M15 70 C15 55 30 50 40 58 C45 45 65 42 70 55 C80 50 90 60 85 72 L15 72 Z" fill="#161e36" opacity="0.9" stroke="rgba(201,168,76,0.3)" stroke-width="1" class="wave" /></svg>`;
+    } else if (cleanTheme.includes("moses") || cleanTheme.includes("musa") || cleanTheme.includes("pharaoh")) {
+      svgArt = `<svg viewBox="0 0 100 100"><path d="M10 20 C30 40 30 10 50 30 C70 50 70 20 90 40 L90 90 L10 90 Z" fill="#161e36" stroke="#3aa8b1" stroke-width="2" class="wave" /><path d="M10 40 C30 60 30 30 50 50 C70 70 70 40 90 60 L90 90 L10 90 Z" fill="rgba(58,168,177,0.3)" stroke="#3aa8b1" stroke-width="1.5" class="wave" style="animation-delay: 1s;" /><line x1="50" y1="10" x2="35" y2="85" stroke="#e8c65a" stroke-width="4" stroke-linecap="round" class="staff-glow" /></svg>`;
+    } else if (cleanTheme.includes("judgment") || cleanTheme.includes("hour") || cleanTheme.includes("resurrection") || cleanTheme.includes("day")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="scaleGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8c65a" /><stop offset="100%" stop-color="#a8882e" /></linearGradient></defs><g class="swaying"><line x1="50" y1="20" x2="50" y2="80" stroke="url(#scaleGrad)" stroke-width="4" stroke-linecap="round" /><line x1="30" y1="80" x2="70" y2="80" stroke="url(#scaleGrad)" stroke-width="4" stroke-linecap="round" /><line x1="25" y1="35" x2="75" y2="35" stroke="url(#scaleGrad)" stroke-width="3" stroke-linecap="round" /><line x1="25" y1="35" x2="15" y2="60" stroke="#e8c65a" stroke-width="1" /><line x1="25" y1="35" x2="35" y2="60" stroke="#e8c65a" stroke-width="1" /><path d="M10 60 Q25 70 40 60 Z" fill="url(#scaleGrad)" /><line x1="75" y1="35" x2="65" y2="60" stroke="#e8c65a" stroke-width="1" /><line x1="75" y1="35" x2="85" y2="60" stroke="#e8c65a" stroke-width="1" /><path d="M60 60 Q75 70 90 60 Z" fill="url(#scaleGrad)" /></g></svg>`;
+    } else if (cleanTheme.includes("book") || cleanTheme.includes("quran") || cleanTheme.includes("reveal")) {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="goldLight" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8c65a" /><stop offset="100%" stop-color="#a8882e" /></linearGradient></defs><path d="M30 65 L50 45 L70 65 M50 45 L50 80" stroke="url(#goldLight)" stroke-width="4" stroke-linecap="round" fill="none" /><path d="M50 45 C40 38 25 40 20 45 L20 28 C25 23 40 21 50 28 C60 21 75 23 80 28 L80 45 C75 40 60 38 50 45 Z" fill="#fff" stroke="url(#goldLight)" stroke-width="2" /><g class="pulsing"><line x1="50" y1="20" x2="50" y2="5" stroke="#e8c65a" stroke-width="2" opacity="0.8" /><line x1="35" y1="22" x2="22" y2="10" stroke="#e8c65a" stroke-width="1.5" opacity="0.6" /><line x1="65" y1="22" x2="78" y2="10" stroke="#e8c65a" stroke-width="1.5" opacity="0.6" /></g></svg>`;
+    } else {
+      svgArt = `<svg viewBox="0 0 100 100"><defs><linearGradient id="mandGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8c65a" /><stop offset="100%" stop-color="#a8882e" /></linearGradient></defs><g class="rotating"><circle cx="50" cy="50" r="35" stroke="url(#mandGrad)" stroke-width="2" fill="none" /><circle cx="50" cy="50" r="25" stroke="url(#mandGrad)" stroke-width="1.5" stroke-dasharray="4,4" fill="none" /><rect x="25" y="25" width="50" height="50" stroke="url(#mandGrad)" stroke-width="1" fill="none" /><rect x="25" y="25" width="50" height="50" stroke="url(#mandGrad)" stroke-width="1" fill="none" transform="rotate(45 50 50)" /></g><circle cx="50" cy="50" r="5" fill="url(#mandGrad)" /></svg>`;
+    }
+    
+    els.themeVisualizerArt.innerHTML = svgArt;
+    els.themeVisualizerCard.classList.remove('hidden');
+  }
+
+  function playIndividualAyah(ayah) {
+    // Stop any existing loop or other playing audio
+    stopTeacherLoop();
+    
+    if (individualAudioPlayer) {
+      individualAudioPlayer.pause();
+      if (playingAyahNum === ayah.number) {
+        // Toggle stop if clicking the same playing ayah
+        playingAyahNum = null;
+        individualAudioPlayer = null;
+        document.querySelectorAll(".word.playing-ayah").forEach(el => el.classList.remove('playing-ayah'));
+        updatePlayButtonsUI();
+        if (els.sidebarAudioPlayer) {
+          els.sidebarAudioPlayer.classList.add('hidden');
+        }
+        updateTopStatusBanner('idle');
+        return;
+      }
+    }
+    
+    playingAyahNum = ayah.number;
+    updateTopStatusBanner('reciting', ayah);
+    highlightTeacherAyah(ayah.number);
+    
+    const audioUrl = `https://cdn.islamic.network/quran/audio/128/${state.reciter}/${ayah.number}.mp3`;
+    individualAudioPlayer = new Audio(audioUrl);
+    
+    const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+    const labelText = `${surahName}, Ayah ${ayah.numberInSurah}`;
+    bindAudioPlayer(individualAudioPlayer, labelText);
+
+    individualAudioPlayer.play().catch(err => {
+      console.warn("Failed to play audio", err);
+      playingAyahNum = null;
+      updatePlayButtonsUI();
+    });
+    
+    individualAudioPlayer.onended = () => {
+      stopAllRecitation();
+    };
+    
+    updatePlayButtonsUI();
+  }
+
+  function updatePlayButtonsUI() {
+    document.querySelectorAll('.ayah-card').forEach(card => {
+      const ayahNumber = parseInt(card.dataset.ayahNumber, 10);
+      const playBtn = card.querySelector('.ayah-play-btn');
+      if (playBtn) {
+        if (playingAyahNum === ayahNumber) {
+          playBtn.classList.add('playing');
+          playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+        } else {
+          playBtn.classList.remove('playing');
+          playBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+        }
+      }
+    });
+  }
+
+  function stopAllRecitation() {
+    state.teacherState.isPlaying = false;
+    if (state.teacherState.audioPlayer) {
+      state.teacherState.audioPlayer.pause();
+      state.teacherState.audioPlayer = null;
+    }
+    
+    if (individualAudioPlayer) {
+      individualAudioPlayer.pause();
+      individualAudioPlayer = null;
+      playingAyahNum = null;
+      updatePlayButtonsUI();
+    }
+    
+    document.querySelectorAll(".word.playing-ayah").forEach(el => {
+      el.classList.remove("playing-ayah");
+    });
+
+    // Hide/reset audio player widget
+    if (els.sidebarAudioPlayer) {
+      els.sidebarAudioPlayer.classList.add('hidden');
+    }
+    if (els.playerProgressBarFill) {
+      els.playerProgressBarFill.style.width = '0%';
+    }
+    if (els.playerTimeCurrent) {
+      els.playerTimeCurrent.textContent = '0:00';
+    }
+    if (els.playerTimeTotal) {
+      els.playerTimeTotal.textContent = '0:00';
+    }
+    if (els.playerPlayBtn) {
+      els.playerPlayBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+    }
+    updateTopStatusBanner('idle');
+    updateThemeVisualizer(null);
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.remove('teacher-active');
+    
+    state.teacherState.isGlobalPageLoop = false;
+    if (els.globalPageLoopBtn) {
+      els.globalPageLoopBtn.classList.remove('active');
+    }
   }
 
   // Simple HTML escaping for translation text
@@ -516,15 +1076,386 @@
 
   // ===================== TEXT OVERLAY MODE =====================
   function toggleTextMode() {
-    state.isTextMode = !state.isTextMode;
-    els.toggleTextBtn.classList.toggle('active', state.isTextMode);
+    // Disabled to enforce Mushaf mode only
+    state.isTextMode = false;
+    if (els.toggleTextBtn) els.toggleTextBtn.classList.remove('active');
+    if (els.pageTextOverlay) els.pageTextOverlay.classList.remove('active');
+    if (els.pageImageContainer) els.pageImageContainer.classList.remove('hide-image');
+  }
 
-    if (state.isTextMode) {
-      els.pageTextOverlay.classList.add('active');
-      els.pageImageContainer.classList.add('hide-image');
+  function applyTheme() {
+    if (state.isTextLightMode) {
+      document.body.classList.add('light-mode');
+      if (els.pageTextOverlay) els.pageTextOverlay.classList.add('light-mode');
     } else {
-      els.pageTextOverlay.classList.remove('active');
-      els.pageImageContainer.classList.remove('hide-image');
+      document.body.classList.remove('light-mode');
+      if (els.pageTextOverlay) els.pageTextOverlay.classList.remove('light-mode');
+    }
+
+    if (els.themeToggleBtn) {
+      els.themeToggleBtn.classList.toggle('active', state.isTextLightMode);
+      
+      const spanEl = els.themeToggleBtn.querySelector('span');
+      if (spanEl) {
+        spanEl.textContent = state.isTextLightMode ? 'Light Mode' : 'Dark Mode';
+      }
+      
+      const svgEl = els.themeToggleBtn.querySelector('svg');
+      if (svgEl) {
+        if (state.isTextLightMode) {
+          // Sun icon
+          svgEl.innerHTML = '<path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.01c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>';
+        } else {
+          // Moon icon
+          svgEl.innerHTML = '<path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>';
+        }
+      }
+    }
+  }
+
+  function toggleThemeMode() {
+    state.isTextLightMode = !state.isTextLightMode;
+    try {
+      localStorage.setItem('text-mode-theme', state.isTextLightMode ? 'light' : 'dark');
+    } catch (e) {}
+    applyTheme();
+  }
+
+  function toggleHidePageMode() {
+    state.isPageHidden = !state.isPageHidden;
+    
+    if (els.hidePageBtn && els.hidePageText) {
+      els.hidePageBtn.classList.toggle('active', state.isPageHidden);
+      els.hidePageText.textContent = state.isPageHidden ? 'Show Page' : 'Hide Page';
+    }
+    
+    if (els.pageImageContainer) {
+      els.pageImageContainer.classList.toggle('hide-page-active', state.isPageHidden);
+    }
+  }
+
+  function toggleHideTextMode() {
+    state.isTextHidden = !state.isTextHidden;
+    
+    if (els.hideTextBtn && els.hideTextText) {
+      els.hideTextBtn.classList.toggle('active', state.isTextHidden);
+      els.hideTextText.textContent = state.isTextHidden ? 'Show Text' : 'Hide Text';
+    }
+    
+    // Toggle practice-hidden classes on all word elements on the page!
+    const words = els.pageTextOverlay.querySelectorAll('.word');
+    words.forEach(wordEl => {
+      if (state.isTextHidden) {
+        wordEl.classList.add('practice-hidden');
+      } else {
+        wordEl.classList.remove('practice-hidden', 'practice-success');
+      }
+    });
+    
+    // Update visual block masks covering the calligraphy
+    updateMushafMasks();
+  }
+
+  // ===================== HANDWRITING TRACING =====================
+  function toggleTraceMode() {
+    state.isTraceMode = !state.isTraceMode;
+    
+    if (els.toggleTraceModeBtn) {
+      els.toggleTraceModeBtn.classList.toggle('active', state.isTraceMode);
+      const spanEl = els.toggleTraceModeBtn.querySelector('.trace-btn-text');
+      if (spanEl) {
+        spanEl.textContent = state.isTraceMode ? 'Trace Mode: ON' : 'Trace & Write Mode';
+      }
+    }
+    
+    if (els.traceControls) {
+      els.traceControls.classList.toggle('hidden', !state.isTraceMode);
+    }
+    
+    if (els.pageImageContainer) {
+      els.pageImageContainer.classList.toggle('trace-mode-active', state.isTraceMode);
+      if (state.isTraceMode) {
+        els.pageImageContainer.style.setProperty('--trace-opacity', (state.traceOpacity / 100));
+      } else {
+        els.pageImageContainer.style.removeProperty('--trace-opacity');
+      }
+    }
+    
+    if (els.traceCanvas) {
+      els.traceCanvas.classList.toggle('active', state.isTraceMode);
+      if (state.isTraceMode) {
+        // Reset tool to Pen mode by default on activation
+        state.traceIsEraser = false;
+        if (els.tracePenBtn) els.tracePenBtn.classList.add('active');
+        if (els.traceEraserBtn) els.traceEraserBtn.classList.remove('active');
+        els.traceCanvas.classList.remove('eraser-active');
+        
+        // Ensure correct color dot is highlighted
+        document.querySelectorAll('.color-dot').forEach(dot => {
+          dot.classList.toggle('active', dot.getAttribute('data-color') === state.traceColor);
+        });
+
+        setTimeout(() => {
+          resizeTraceCanvas();
+          initCanvasEvents();
+        }, 50);
+      }
+    }
+  }
+
+  function resizeTraceCanvas() {
+    const canvas = els.traceCanvas;
+    const img = els.pageImage;
+    if (!canvas || !img) return;
+    
+    const rect = img.getBoundingClientRect();
+    const container = els.pageImageContainer;
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
+    
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    canvas.style.left = (rect.left - containerRect.left) + 'px';
+    canvas.style.top = (rect.top - containerRect.top) + 'px';
+    
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    
+    redrawPageStrokes();
+  }
+
+  function redrawPageStrokes() {
+    const canvas = els.traceCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear whole canvas backing store
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    
+    const pageNum = state.currentPage;
+    const strokes = state.pageStrokes[pageNum];
+    if (!strokes || strokes.length === 0) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (width === 0 || height === 0) return;
+    
+    for (const stroke of strokes) {
+      if (stroke.points.length === 0) continue;
+      
+      ctx.beginPath();
+      if (stroke.isEraser) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.lineWidth = 20;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width;
+      }
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      const p0 = stroke.points[0];
+      ctx.moveTo(p0.x * width, p0.y * height);
+      for (let i = 1; i < stroke.points.length; i++) {
+        const p = stroke.points[i];
+        ctx.lineTo(p.x * width, p.y * height);
+      }
+      ctx.stroke();
+    }
+    
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function undoLastStroke() {
+    const pageNum = state.currentPage;
+    if (state.pageStrokes[pageNum] && state.pageStrokes[pageNum].length > 0) {
+      state.pageStrokes[pageNum].pop();
+      redrawPageStrokes();
+      saveTraceData();
+    }
+  }
+
+  function clearPageDrawing() {
+    const pageNum = state.currentPage;
+    state.pageStrokes[pageNum] = [];
+    redrawPageStrokes();
+    saveTraceData();
+  }
+
+  let isDrawing = false;
+  let currentStroke = null;
+
+  function initCanvasEvents() {
+    if (state.canvasEventsWired) return;
+    const canvas = els.traceCanvas;
+    if (!canvas) return;
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!state.isTraceMode) return;
+      
+      isDrawing = true;
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch (err) {}
+      
+      const rect = canvas.getBoundingClientRect();
+      const x = parseFloat(((e.clientX - rect.left) / rect.width).toFixed(4));
+      const y = parseFloat(((e.clientY - rect.top) / rect.height).toFixed(4));
+      
+      currentStroke = {
+        color: state.traceColor,
+        width: state.traceIsEraser ? 20 : state.traceWidth,
+        isEraser: state.traceIsEraser,
+        points: [{x, y}]
+      };
+      
+      const pageNum = state.currentPage;
+      if (!state.pageStrokes[pageNum]) {
+        state.pageStrokes[pageNum] = [];
+      }
+      state.pageStrokes[pageNum].push(currentStroke);
+      
+      drawSegment(e.clientX - rect.left, e.clientY - rect.top, e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing || !currentStroke) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const x = parseFloat(((e.clientX - rect.left) / rect.width).toFixed(4));
+      const y = parseFloat(((e.clientY - rect.top) / rect.height).toFixed(4));
+      
+      currentStroke.points.push({x, y});
+      
+      const pointsCount = currentStroke.points.length;
+      if (pointsCount > 1) {
+        const prevNormalized = currentStroke.points[pointsCount - 2];
+        const prevX = prevNormalized.x * rect.width;
+        const prevY = prevNormalized.y * rect.height;
+        const currX = x * rect.width;
+        const currY = y * rect.height;
+        drawSegment(prevX, prevY, currX, currY);
+      }
+    });
+
+    const stopDrawing = (e) => {
+      if (isDrawing) {
+        isDrawing = false;
+        if (currentStroke) {
+          saveTraceData();
+          currentStroke = null;
+        }
+        try {
+          canvas.releasePointerCapture(e.pointerId);
+        } catch (err) {}
+      }
+    };
+
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
+
+    state.canvasEventsWired = true;
+  }
+
+  function drawSegment(x1, y1, x2, y2) {
+    const canvas = els.traceCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.beginPath();
+    if (state.traceIsEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.lineWidth = 20;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = state.traceColor;
+      ctx.lineWidth = state.traceWidth;
+    }
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function applySelectionMask() {
+    if (!els.globalTimedStart || !els.globalTimedEnd) return;
+    const startVal = parseInt(els.globalTimedStart.value);
+    const endVal = parseInt(els.globalTimedEnd.value);
+    const selectedAyahNumbers = new Set();
+    
+    if (!isNaN(startVal) && !isNaN(endVal) && startVal <= endVal) {
+      for (let i = startVal; i <= endVal; i++) {
+        if (state.ayahs[i]) {
+          selectedAyahNumbers.add(state.ayahs[i].number);
+        }
+      }
+    }
+    
+    const words = els.pageTextOverlay.querySelectorAll('.word');
+    words.forEach(wordEl => {
+      const ayahNum = parseInt(wordEl.dataset.ayah);
+      const isWordRevealed = state.revealedAyahs.has(ayahNum) || wordEl.classList.contains('practice-success');
+      
+      if (state.isSelectionHidden && selectedAyahNumbers.has(ayahNum)) {
+        if (!isWordRevealed) {
+          wordEl.classList.add('practice-hidden');
+        }
+      } else {
+        if (!state.isTextHidden && !state.teacherState.isPracticeMode && (!state.teacherState.activeGroup || !state.teacherState.activeGroup.ayahs.some(a => a.number === ayahNum))) {
+          wordEl.classList.remove('practice-hidden', 'practice-success');
+        }
+      }
+    });
+  }
+
+  function toggleHideSelectionMode() {
+    state.isSelectionHidden = !state.isSelectionHidden;
+    
+    if (els.hideSelectionBtn && els.hideSelectionText) {
+      els.hideSelectionBtn.classList.toggle('active', state.isSelectionHidden);
+      els.hideSelectionText.textContent = state.isSelectionHidden ? 'Show Range' : 'Hide Range';
+    }
+    
+    updateMushafMasks();
+  }
+
+  function showWordTranslation(wordEl) {
+    const ayahNum = parseInt(wordEl.dataset.ayah);
+    if (isNaN(ayahNum)) return;
+    
+    const matchedAyah = state.ayahs.find(a => a.number === ayahNum);
+    if (!matchedAyah) return;
+    
+    const surahName = matchedAyah.surah ? (matchedAyah.surah.englishName || `Surah ${matchedAyah.surah.number}`) : 'Surah';
+    const translationText = getEnglishTranslation(matchedAyah.surah.number, matchedAyah.numberInSurah);
+    
+    const transArabicWord = document.getElementById('transArabicWord');
+    const transContextInfo = document.getElementById('transContextInfo');
+    const transEnglishText = document.getElementById('transEnglishText');
+    const panel = els.wordTranslationPanel;
+    
+    if (transArabicWord && transContextInfo && transEnglishText && panel) {
+      // Clean word text from ayah digits
+      const cleanWordText = wordEl.textContent.replace(/﴿[\u0660-\u0669\d]+﴾/g, '').trim();
+      transArabicWord.textContent = cleanWordText;
+      transContextInfo.textContent = `${surahName} · Ayah ${matchedAyah.numberInSurah}`;
+      transEnglishText.textContent = translationText || "Translation not found.";
+      
+      panel.classList.remove('hidden');
     }
   }
 
@@ -538,53 +1469,491 @@
       els.pageTextOverlay.innerHTML = '';
       return;
     }
-    let html = '<div class="text-overlay-content">';
+
+    // Fallback if local page lines are not loaded yet
+    if (!state.quranPageLines || !state.quranPageLines[state.currentPage]) {
+      let html = '<div class="text-overlay-content">';
+      let globalWordIdx = 0;
+      state.pageWordsNormalized = [];
+      state.pageWordData = [];
+
+      state.ayahs.forEach(ayah => {
+        let tokens = ayah.text.match(/(\S+|\s+)/g) || [];
+        let wordIndices = [];
+        tokens.forEach((t, i) => {
+          if (/\S/.test(t)) wordIndices.push(i);
+        });
+        
+        let skipCount = 0;
+        if (ayah.numberInSurah === 1 && ayah.surah && ayah.surah.number !== 1) {
+          if (wordIndices.length > 4 && tokens[wordIndices[0]].includes('بِسْمِ')) {
+            skipCount = 4;
+          }
+        }
+        
+        let firstWordIdx = wordIndices[skipCount] !== undefined ? wordIndices[skipCount] : -1;
+        let lastWordIdx = wordIndices[wordIndices.length - 1] !== undefined ? wordIndices[wordIndices.length - 1] : -1;
+        
+        html += `<span class="ayah-text-inline">`;
+        for (let i = 0; i < tokens.length; i++) {
+          if (/\S/.test(tokens[i])) {
+            let idAttr = '';
+            let extraClass = state.isTextHidden ? ' practice-hidden' : '';
+            if (i === firstWordIdx) { idAttr = `id="text-start-${ayah.number}"`; extraClass += ' word-start'; }
+            else if (i === lastWordIdx && i !== firstWordIdx) { idAttr = `id="text-end-${ayah.number}"`; extraClass += ' word-end'; }
+            
+            const normalized = normalizeArabic(tokens[i]);
+            html += `<span class="word${extraClass}" ${idAttr} data-word-idx="${globalWordIdx}" data-ayah="${ayah.number}">${tokens[i]}</span>`;
+            state.pageWordsNormalized.push(normalized);
+            state.pageWordData.push({ text: normalized, ayahNum: ayah.number, wordIdx: globalWordIdx });
+            globalWordIdx++;
+          } else {
+            html += tokens[i];
+          }
+        }
+        html += `</span>`;
+        let markerExtraClass = state.isTextHidden ? ' practice-hidden' : '';
+        html += `<span class="word ayah-marker-inline${markerExtraClass}" data-ayah="${ayah.number}">﴿${toArabicNumerals(ayah.numberInSurah)}﴾</span> `;
+      });
+      html += '</div>';
+      els.pageTextOverlay.innerHTML = html;
+      return;
+    }
+
+    // 🌟 Perfect Line-by-Line Medina Mushaf Text Alignment
     let globalWordIdx = 0;
     state.pageWordsNormalized = [];
     state.pageWordData = [];
 
+    // Flatten all ayah words
+    const ayahWords = [];
     state.ayahs.forEach(ayah => {
-      // Tokenize the text strictly preserving all spaces and newlines (\n)
-      let tokens = ayah.text.match(/(\S+|\s+)/g) || [];
-      
-      let wordIndices = [];
-      tokens.forEach((t, i) => {
-        if (/\S/.test(t)) wordIndices.push(i);
+      const tokens = ayah.text.trim().split(/\s+/);
+      tokens.forEach((token, tokenIdx) => {
+        ayahWords.push({
+          text: token,
+          normalized: normalizeArabic(token),
+          ayahNum: ayah.number,
+          numberInSurah: ayah.numberInSurah,
+          tokenIdx: tokenIdx
+        });
       });
-      
-      let skipCount = 0;
-      if (ayah.numberInSurah === 1 && ayah.surah && ayah.surah.number !== 1) {
-        if (wordIndices.length > 4 && tokens[wordIndices[0]].includes('بِسْمِ')) {
-          skipCount = 4;
-        }
-      }
-      
-      let firstWordIdx = wordIndices[skipCount] !== undefined ? wordIndices[skipCount] : -1;
-      let lastWordIdx = wordIndices[wordIndices.length - 1] !== undefined ? wordIndices[wordIndices.length - 1] : -1;
-      
-      html += `<span class="ayah-text-inline">`;
-      for (let i = 0; i < tokens.length; i++) {
-        if (/\S/.test(tokens[i])) { // If token is a word
-          let idAttr = '';
-          let extraClass = '';
-          if (i === firstWordIdx) { idAttr = `id="text-start-${ayah.number}"`; extraClass = ' word-start'; }
-          else if (i === lastWordIdx && i !== firstWordIdx) { idAttr = `id="text-end-${ayah.number}"`; extraClass = ' word-end'; }
-          
-          const normalized = normalizeArabic(tokens[i]);
-          html += `<span class="word${extraClass}" ${idAttr} data-word-idx="${globalWordIdx}" data-ayah="${ayah.number}">${tokens[i]}</span>`;
-          state.pageWordsNormalized.push(normalized);
-          state.pageWordData.push({ text: normalized, ayahNum: ayah.number, wordIdx: globalWordIdx });
-          globalWordIdx++;
-        } else {
-          html += tokens[i];
-        }
-      }
-      html += `</span>`;
-      
-      html += `<span class="ayah-marker-inline"> ﴿${toArabicNumerals(ayah.numberInSurah)}﴾ </span>`;
     });
+
+    let ayahWordPointer = 0;
+    const pageLines = state.quranPageLines[state.currentPage] || [];
+    const renderedLines = [];
+
+    pageLines.forEach(line => {
+      const isHeader = line.includes('سُورَةُ') || line.includes('سورة');
+      if (isHeader) {
+        const cleanHeaderText = line.replace(/^[\s\d]+/, '');
+        renderedLines.push({ type: 'header', text: cleanHeaderText });
+        return;
+      }
+
+      const isBasmalah = normalizeArabic(line) === "بسم الله الرحمن الرحيم";
+      const lineWords = line.trim().split(/\s+/);
+      const wordsInLine = [];
+
+      lineWords.forEach(word => {
+        // Strip trailing digits for matching
+        const cleanWord = word.replace(/[\u0660-\u0669\d]+$/, '');
+        const normLineWord = normalizeArabic(cleanWord);
+        
+        let matchedAyahWord = null;
+        let matchedIdx = -1;
+        for (let k = 0; k < 10; k++) {
+          const ptr = ayahWordPointer + k;
+          if (ptr < ayahWords.length) {
+            if (ayahWords[ptr].normalized === normLineWord || isFuzzyMatch(ayahWords[ptr].normalized, normLineWord)) {
+              matchedIdx = ptr;
+              break;
+            }
+          }
+        }
+
+        if (matchedIdx !== -1) {
+          ayahWordPointer = matchedIdx + 1;
+          matchedAyahWord = ayahWords[matchedIdx];
+        } else if (ayahWordPointer < ayahWords.length) {
+          matchedAyahWord = ayahWords[ayahWordPointer];
+        }
+
+        const ayahNum = matchedAyahWord ? matchedAyahWord.ayahNum : (state.ayahs[0]?.number || 0);
+
+        wordsInLine.push({
+          text: word,
+          cleanWord: cleanWord,
+          norm: normLineWord,
+          ayahNum: ayahNum,
+          globalWordIdx: globalWordIdx
+        });
+
+        state.pageWordsNormalized.push(normLineWord);
+        state.pageWordData.push({ text: normLineWord, ayahNum: ayahNum, wordIdx: globalWordIdx });
+        globalWordIdx++;
+      });
+
+      renderedLines.push({
+        type: isBasmalah ? 'basmalah' : 'normal',
+        words: wordsInLine
+      });
+    });
+
+    // Identify start/end coordinates of each ayah
+    const ayahStartIdx = {};
+    const ayahEndIdx = {};
+    state.pageWordData.forEach(wd => {
+      if (ayahStartIdx[wd.ayahNum] === undefined) {
+        ayahStartIdx[wd.ayahNum] = wd.wordIdx;
+      }
+      ayahEndIdx[wd.ayahNum] = wd.wordIdx;
+    });
+
+    const isPage1or2 = (state.currentPage === 1 || state.currentPage === 2);
+    const specificPageClass = state.currentPage === 1 ? ' page-1' : (state.currentPage === 2 ? ' page-2' : '');
+    let html = `<div class="text-overlay-content${isPage1or2 ? ' page-1-2' : ''}${specificPageClass}">`;
+    
+    renderedLines.forEach(lineObj => {
+      if (lineObj.type === 'header') {
+        let extraClass = state.isTextHidden ? ' practice-hidden' : '';
+        html += `<div class="mushaf-line header-line"><span class="word${extraClass}">${lineObj.text}</span></div>`;
+      } else if (lineObj.type === 'basmalah') {
+        html += `<div class="mushaf-line basmalah-line">`;
+        lineObj.words.forEach(w => {
+          let idAttr = '';
+          let extraClass = state.isTextHidden ? ' practice-hidden' : '';
+          if (w.globalWordIdx === ayahStartIdx[w.ayahNum]) { idAttr = `id="text-start-${w.ayahNum}"`; extraClass += ' word-start'; }
+          else if (w.globalWordIdx === ayahEndIdx[w.ayahNum]) { idAttr = `id="text-end-${w.ayahNum}"`; extraClass += ' word-end'; }
+          html += `<span class="word${extraClass}" ${idAttr} data-word-idx="${w.globalWordIdx}" data-ayah="${w.ayahNum}">${w.text}</span> `;
+        });
+        html += `</div>`;
+      } else {
+        html += `<div class="mushaf-line">`;
+        lineObj.words.forEach(w => {
+          let idAttr = '';
+          let extraClass = state.isTextHidden ? ' practice-hidden' : '';
+          if (w.globalWordIdx === ayahStartIdx[w.ayahNum]) { idAttr = `id="text-start-${w.ayahNum}"`; extraClass += ' word-start'; }
+          else if (w.globalWordIdx === ayahEndIdx[w.ayahNum]) { idAttr = `id="text-end-${w.ayahNum}"`; extraClass += ' word-end'; }
+          
+          const matchDigits = w.text.match(/^(.*?)([\u0660-\u0669\d]+)$/);
+          if (matchDigits) {
+            const cleanText = matchDigits[1];
+            const digits = matchDigits[2];
+            html += `<span class="word${extraClass}" ${idAttr} data-word-idx="${w.globalWordIdx}" data-ayah="${w.ayahNum}">${cleanText}<span class="ayah-number-digit">﴿${digits}﴾</span></span> `;
+          } else {
+            html += `<span class="word${extraClass}" ${idAttr} data-word-idx="${w.globalWordIdx}" data-ayah="${w.ayahNum}">${w.text}</span> `;
+          }
+        });
+        html += `</div>`;
+      }
+    });
+
     html += '</div>';
     els.pageTextOverlay.innerHTML = html;
+    
+    // Update solid block masks for Close Book Mode / Practice Mode
+    setTimeout(updateMushafMasks, 50);
+  }
+
+  function revealAyahInPractice(ayahNum) {
+    const isPractice = state.teacherState.isPracticeMode || state.isTextHidden || state.isSelectionHidden;
+    const isTimedTest = state.teacherState.timedMode.active && state.teacherState.timedMode.phase === 'test';
+    
+    if (!isPractice && !isTimedTest) return;
+    
+    // Find all word elements of this ayah on page
+    const words = els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayahNum}"]`);
+    words.forEach(wordEl => {
+      const wordIdx = parseInt(wordEl.dataset.wordIdx);
+      if (!isNaN(wordIdx)) {
+        state.teacherState.recitedWordIdxs.add(wordIdx);
+        if (isTimedTest) {
+          wordEl.classList.remove('timed-test-hidden');
+          wordEl.classList.add('timed-test-success');
+        } else {
+          wordEl.classList.remove('practice-hidden');
+          wordEl.classList.add('practice-success');
+        }
+      }
+    });
+    
+    updateTeacherUI();
+    updateMushafMasks();
+    
+    // Check if finished (only for active thematic groups or timed mode)
+    if (state.teacherState.activeGroup || state.teacherState.timedMode.active) {
+      const groupWordData = state.pageWordData.filter(wd => {
+        if (!state.teacherState.activeGroup) return false;
+        const activeAyahNumbers = new Set(state.teacherState.activeGroup.ayahs.map(a => a.number));
+        return activeAyahNumbers.has(wd.ayahNum);
+      });
+      
+      const totalWords = state.teacherState.timedMode.active ? getTimedModeWordCount() : groupWordData.length;
+      const recitedWords = state.teacherState.recitedWordIdxs.size;
+      
+      if (recitedWords >= totalWords) {
+        showToast("🏆 Maa Shaa Allah! You have successfully memorized this group!", true);
+        if (state.teacherState.timedMode.active) {
+          stopTimedMode();
+        } else {
+          stopTeacherPractice();
+        }
+      }
+    }
+  }
+
+  function updateMushafMasks() {
+    const container = document.getElementById('mushafMasksContainer');
+    const hintsContainer = els.ayahStartHintsContainer || document.getElementById('ayahStartHintsContainer');
+    
+    if (container) container.innerHTML = '';
+    if (hintsContainer) hintsContainer.innerHTML = '';
+    
+    // Sync selection hidden classes
+    applySelectionMask();
+    
+    // Check if we are in Close Book Mode (Practice Mode, Text Hidden, or Selection Hidden Mode)
+    const isPractice = state.teacherState.isPracticeMode || state.isTextHidden || state.isSelectionHidden;
+    const isTimedTest = state.teacherState.timedMode.active && state.teacherState.timedMode.phase === 'test';
+    
+    if (!isPractice && !isTimedTest) {
+      return;
+    }
+    
+    const overlay = els.pageTextOverlay;
+    if (!overlay) return;
+    
+    const overlayRect = overlay.getBoundingClientRect();
+    if (overlayRect.width === 0 || overlayRect.height === 0) return;
+    
+    // Sync class page-1-2 on hints container
+    const isPage1or2 = (state.currentPage === 1 || state.currentPage === 2);
+    if (hintsContainer) {
+      hintsContainer.classList.toggle('page-1-2', isPage1or2);
+    }
+    
+    // Render starting hints for hidden ayahs if enabled
+    if (state.teacherState.showStartHints) {
+      const wordStartElements = overlay.querySelectorAll('.word-start');
+      wordStartElements.forEach(wordEl => {
+        const isHidden = wordEl.classList.contains('practice-hidden') || wordEl.classList.contains('timed-test-hidden');
+        if (isHidden) {
+          const rect = wordEl.getBoundingClientRect();
+          const relativeTop = rect.top - overlayRect.top;
+          const relativeLeft = rect.left - overlayRect.left;
+          const width = rect.width;
+          const height = rect.height;
+          
+          let hintText = wordEl.textContent;
+          hintText = hintText.replace(/[﴿﴾\u0660-\u0669\d\s]+/g, '').trim();
+          if (!hintText) return;
+          
+          const ayahNum = parseInt(wordEl.dataset.ayah);
+          
+          const hintBadge = document.createElement('div');
+          hintBadge.className = 'ayah-start-hint';
+          hintBadge.style.top = `${relativeTop}px`;
+          hintBadge.style.left = `${relativeLeft}px`;
+          hintBadge.style.width = `${width}px`;
+          hintBadge.style.height = `${height}px`;
+          hintBadge.style.lineHeight = `${height}px`;
+          hintBadge.textContent = hintText;
+          
+          // Make it clickable to reveal the ayah!
+          hintBadge.style.pointerEvents = 'auto';
+          hintBadge.title = "Click to reveal ayah";
+          hintBadge.addEventListener('click', () => {
+            revealAyahInPractice(ayahNum);
+          });
+          
+          if (hintsContainer) {
+            hintsContainer.appendChild(hintBadge);
+          }
+        }
+      });
+    }
+    
+    // Helper function to create and append a mask div
+    function createMask(left, right, top, bottom) {
+      const relativeLeft = Math.max(0, left - overlayRect.left);
+      const relativeRight = Math.min(overlayRect.width, right - overlayRect.left);
+      const relativeTop = Math.max(0, top - overlayRect.top);
+      const relativeBottom = Math.min(overlayRect.height, bottom - overlayRect.top);
+      
+      if (relativeRight <= relativeLeft || relativeBottom <= relativeTop) return;
+      
+      const leftPct = (relativeLeft / overlayRect.width) * 100;
+      const widthPct = ((relativeRight - relativeLeft) / overlayRect.width) * 100;
+      const topPct = (relativeTop / overlayRect.height) * 100;
+      const heightPct = ((relativeBottom - relativeTop) / overlayRect.height) * 100;
+      
+      const mask = document.createElement('div');
+      mask.className = 'mushaf-block-mask';
+      mask.style.left = `${leftPct}%`;
+      mask.style.top = `${topPct}%`;
+      mask.style.width = `${widthPct}%`;
+      mask.style.height = `${heightPct}%`;
+      
+      container.appendChild(mask);
+    }
+
+    // Find all lines
+    const lines = Array.from(overlay.querySelectorAll('.mushaf-line'));
+    
+    if (lines.length > 0) {
+      const candidates = [];
+      const lineRects = lines.map(line => line.getBoundingClientRect());
+      const verticalBounds = [];
+      const padY = 2; // small padding to extend boundary slightly for safety
+      
+      for (let i = 0; i < lines.length; i++) {
+        const rect = lineRects[i];
+        let top = rect.top;
+        let bottom = rect.bottom;
+        
+        // Calculate midpoint between this line and the previous line
+        if (i > 0) {
+          const prevRect = lineRects[i - 1];
+          top = (prevRect.bottom + rect.top) / 2;
+        } else {
+          top = rect.top - 10;
+        }
+        
+        // Calculate midpoint between this line and the next line
+        if (i < lines.length - 1) {
+          const nextRect = lineRects[i + 1];
+          bottom = (rect.bottom + nextRect.top) / 2;
+        } else {
+          bottom = rect.bottom + 10;
+        }
+        
+        verticalBounds.push({ top, bottom });
+      }
+      
+      lines.forEach((line, i) => {
+        const lineRect = lineRects[i];
+        const bounds = verticalBounds[i];
+        
+        // Find all word elements inside this line
+        const words = Array.from(line.querySelectorAll('.word'));
+        
+        // If it's a header line with no words, mask the full line width
+        if (words.length === 0) {
+          if (line.classList.contains('header-line')) {
+            candidates.push({
+              left: overlayRect.left,
+              right: overlayRect.right,
+              top: bounds.top,
+              bottom: bounds.bottom
+            });
+          }
+          return;
+        }
+        
+        // Group contiguous words that are hidden/success
+        const segments = [];
+        let currentSegment = [];
+        
+        words.forEach(word => {
+          const isHidden = word.classList.contains('practice-hidden') || 
+                           word.classList.contains('timed-test-hidden') || 
+                           word.classList.contains('practice-success') || 
+                           word.classList.contains('timed-test-success');
+          if (isHidden) {
+            currentSegment.push(word);
+          } else {
+            if (currentSegment.length > 0) {
+              segments.push(currentSegment);
+              currentSegment = [];
+            }
+          }
+        });
+        if (currentSegment.length > 0) {
+          segments.push(currentSegment);
+        }
+        
+        // Push masks for each segment
+        segments.forEach(segment => {
+          let left, right;
+          
+          if (segment.length === words.length) {
+            // The entire line is hidden, so mask the full width of the overlay container to ensure it reaches the margins and joins perfectly
+            left = overlayRect.left;
+            right = overlayRect.right;
+          } else {
+            // Only a part of the line is hidden, mask the bounding box of the words in the segment
+            let minLeft = Infinity;
+            let maxRight = -Infinity;
+            segment.forEach(word => {
+              const rect = word.getBoundingClientRect();
+              if (rect.left < minLeft) minLeft = rect.left;
+              if (rect.right > maxRight) maxRight = rect.right;
+            });
+            
+            const padX = 12; // increased padding to ensure it covers diacritics and overlaps nicely
+            left = minLeft - padX;
+            right = maxRight + padX;
+          }
+          
+          candidates.push({ left, right, top: bounds.top, bottom: bounds.bottom });
+        });
+      });
+
+      // Merge vertically adjacent masks that have the same horizontal span
+      let mergedAny = true;
+      while (mergedAny) {
+        mergedAny = false;
+        for (let i = 0; i < candidates.length; i++) {
+          for (let j = i + 1; j < candidates.length; j++) {
+            const c1 = candidates[i];
+            const c2 = candidates[j];
+            
+            // Check if they have the same horizontal span (with a tolerance of 5px)
+            const sameX = Math.abs(c1.left - c2.left) < 5 && Math.abs(c1.right - c2.right) < 5;
+            
+            // Check if they are vertically touching or overlapping (with a tolerance of 2px)
+            const touchingY = (Math.abs(c1.bottom - c2.top) < 2) || (Math.abs(c2.bottom - c1.top) < 2);
+            
+            if (sameX && touchingY) {
+              // Merge c2 into c1
+              c1.left = Math.min(c1.left, c2.left);
+              c1.right = Math.max(c1.right, c2.right);
+              c1.top = Math.min(c1.top, c2.top);
+              c1.bottom = Math.max(c1.bottom, c2.bottom);
+              // Remove c2
+              candidates.splice(j, 1);
+              mergedAny = true;
+              break;
+            }
+          }
+          if (mergedAny) break;
+        }
+      }
+
+      // Draw all candidates!
+      candidates.forEach(c => {
+        // Add a small vertical overlap (3px on top and bottom) to ensure adjacent lines overlap slightly,
+        // which completely eliminates any hairline gaps or cracks caused by browser subpixel rounding.
+        createMask(c.left, c.right, c.top - 3, c.bottom + 3);
+      });
+    } else {
+      // Fallback layout (if no lines are defined yet, e.g. database still loading)
+      const words = Array.from(overlay.querySelectorAll('.word'));
+      words.forEach(word => {
+        const isHidden = word.classList.contains('practice-hidden') || 
+                         word.classList.contains('timed-test-hidden') || 
+                         word.classList.contains('practice-success') || 
+                         word.classList.contains('timed-test-success');
+        if (isHidden) {
+          const rect = word.getBoundingClientRect();
+          const padX = 4;
+          const padY = 2;
+          createMask(rect.left - padX, rect.right + padX, rect.top - padY, rect.bottom + padY);
+        }
+      });
+    }
   }
 
   // Dynamically calculate % placement based on the rendered text mode
@@ -615,15 +1984,72 @@
   
   function normalizeArabic(text) {
     if (!text) return '';
-    return text
+    let norm = text
       .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u08D4-\u08E2\u08E4-\u08FE\u08FF]/g, '') // Remove tashkeel/diacritics
-        .replace(/[أإآاٱ]/g, 'ا') // Normalize Alif and Alef Wasla
+      .replace(/[أإآاٱ]/g, 'ا') // Normalize Alif and Alef Wasla
       .replace(/[يىیئ]/g, 'ي') // Normalize Yaa/Alif Maqsura variations
       .replace(/ة/g, 'ه') // Normalize Taa Marbutah
       .replace(/[ؤو]/g, 'و') // Normalize Waw
       .replace(/[ء]/g, '') // Remove lone hamza which STT often misses
       .replace(/ـ/g, '') // Remove Tatweel
       .trim();
+      
+    // Replace common Uthmanic vs standard spelling variants for perfect STT matching
+    norm = norm
+      .replace(/الصلوة/g, 'الصلاة')
+      .replace(/الصلوات/g, 'الصلاة')
+      .replace(/الزكوة/g, 'الزكاة')
+      .replace(/الحيوة/g, 'الحياة')
+      .replace(/الربوا/g, 'الربا')
+      .replace(/إبرهيم/g, 'ابراهيم')
+      .replace(/إسمعيل/g, 'اسماعيل')
+      .replace(/إسحق/g, 'اسحاق')
+      .replace(/هرون/g, 'هارون')
+      .replace(/داود/g, 'داوود')
+      .replace(/سليمن/g, 'سليمان')
+      .replace(/سلمن/g, 'سليمان')
+      .replace(/السموت/g, 'السماوات')
+      .replace(/السموات/g, 'السماوات')
+      .replace(/سموت/g, 'سماوات')
+      .replace(/الرحمان/g, 'الرحمن')
+      .replace(/يأيها/g, 'ياايها')
+      .replace(/يأدم/g, 'ياادم');
+      
+    return norm;
+  }
+
+  const NOISE_FILLER_WORDS = new Set([
+    'um', 'uh', 'ah', 'oh', 'like', 'youknow', 'hmmm', 'hmm', 'okay', 'well', 'so',
+    'ام', 'اه', 'يعني', 'اممم', 'ااا', 'همم'
+  ]);
+
+  function cleanSpokenTranscript(transcript) {
+    if (!transcript) return [];
+    
+    // Split into tokens
+    const rawTokens = transcript.split(/\s+/);
+    const normalizedTokens = rawTokens.map(normalizeArabic).filter(w => w.length > 0);
+    
+    // Merge standalone prefixes like 'و' (and) and vocatives like 'يا' (O)
+    const mergedTokens = [];
+    for (let i = 0; i < normalizedTokens.length; i++) {
+      const token = normalizedTokens[i];
+      if ((token === 'و' || token === 'يا') && i + 1 < normalizedTokens.length) {
+        mergedTokens.push(token + normalizedTokens[i + 1]);
+        i++;
+      } else {
+        mergedTokens.push(token);
+      }
+    }
+    
+    const cleaned = mergedTokens.filter(w => {
+      if (w.length < 2) return false; // Filter out single letter fragments/breaths
+      const cleanW = w.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+      return !NOISE_FILLER_WORDS.has(cleanW);
+    });
+    
+    // Return unique set of spoken words to avoid double-matching repeated words across speech alternatives
+    return Array.from(new Set(cleaned));
   }
 
   // ===================== LISTEN MODE WAVEFORM & INDICATOR =====================
@@ -649,12 +2075,29 @@
 
   async function startWaveform() {
     const waveform = document.getElementById('waveformContainer');
-    if (!waveform) return;
+    if (!waveform) return false;
     waveform.classList.remove('hidden');
     
+    if (isMobileDevice) {
+      console.log('Mobile device: using CSS waveform to prevent hardware feedback.');
+      const bars = waveform.querySelectorAll('.waveform-bar');
+      bars.forEach(bar => {
+        bar.style.animation = 'waveform-bounce 0.5s ease-in-out infinite alternate';
+        bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
+        bar.style.animationDelay = `${Math.random() * 0.4}s`;
+      });
+      return true;
+    }
+    
     try {
-      // Request raw audio access for the real-time analyser
-      microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request raw audio access with noise cancellation, echo cancellation, and AGC enabled
+      microphoneStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       
       // Setup Web Audio API
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -693,6 +2136,7 @@
         waveformAnimId = requestAnimationFrame(updateWaveform);
       }
       updateWaveform();
+      return true;
     } catch (err) {
       console.warn('Real-time audio level failed, using fallback animation.', err);
       const bars = waveform.querySelectorAll('.waveform-bar');
@@ -701,6 +2145,7 @@
         bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
         bar.style.animationDelay = `${Math.random() * 0.4}s`;
       });
+      return false;
     }
   }
 
@@ -730,12 +2175,13 @@
     });
   }
 
-  function toggleListenMode() {
+  async function toggleListenMode() {
     state.isListenMode = !state.isListenMode;
     els.listenModeBtn.classList.toggle('active', state.isListenMode);
 
     if (state.isListenMode) {
-      if (!state.isTextMode) toggleTextMode();
+      // In Mushaf-only mode, we no longer toggle to Text Mode
+      // if (!state.isTextMode) toggleTextMode();
       
       state.pendingTranscript = null;
       state.lastRecitedWordIdx = -1;
@@ -755,8 +2201,21 @@
       const indicator = document.getElementById('listenIndicator');
       if (indicator) indicator.classList.remove('hidden');
 
-      startWaveform();
+      // Request mic and start waveform. If it fails, permission is denied!
+      const micSuccess = await startWaveform();
+      if (!micSuccess) {
+        showMicPermissionModal();
+        // Reset listen mode state since mic failed
+        state.isListenMode = false;
+        els.listenModeBtn.classList.remove('active');
+        if (indicator) indicator.classList.add('hidden');
+        if (els.pauseListenBtn) els.pauseListenBtn.classList.add('hidden');
+        updateTopStatusBanner('idle');
+        return;
+      }
+
       startListening();
+      updateTopStatusBanner('listening', null);
     } else {
       stopListening();
       stopWaveform();
@@ -768,6 +2227,7 @@
       document.querySelectorAll('.word.highlighted, .word.just-matched').forEach(el => {
         el.classList.remove('highlighted', 'just-matched');
       });
+      updateTopStatusBanner('idle');
     }
   }
 
@@ -802,6 +2262,33 @@
     }
   }
 
+  let lastStartAttempt = 0;
+  let restartTimer = null;
+  let consecutiveErrors = 0;
+
+  async function checkMicPermission() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (e) {
+      console.warn("Microphone permission check failed:", e);
+      return false;
+    }
+  }
+
+  function showMicPermissionModal() {
+    if (els.micPermissionModal) {
+      els.micPermissionModal.classList.add('active');
+    }
+  }
+
+  function hideMicPermissionModal() {
+    if (els.micPermissionModal) {
+      els.micPermissionModal.classList.remove('active');
+    }
+  }
+
   function startListening() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -812,39 +2299,93 @@
 
     if (!recognition) {
       recognition = new SpeechRecognition();
-      recognition.lang = 'ar-SA'; // Optimized for Arabic Speech
-      recognition.continuous = true;
+      recognition.continuous = true; // Use continuous on all devices to prevent beep/flashing loops on mobile
       recognition.interimResults = true;
+      recognition.maxAlternatives = 3; // Enable 3 alternatives to capture dialect variations and minor mishears
 
       recognition.onstart = () => {
         els.listenModeBtn.classList.add('recording');
+        // Reset error count on successful start
+        consecutiveErrors = 0;
       };
 
       recognition.onresult = (event) => {
         let interimTranscript = '';
         let finalTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
-          else interimTranscript += event.results[i][0].transcript;
+          const res = event.results[i];
+          if (res.isFinal) {
+            // Merge all final alternatives to catch any close phonetic matches
+            for (let j = 0; j < res.length; j++) {
+              finalTranscript += ' ' + res[j].transcript;
+            }
+          } else {
+            interimTranscript += res[0].transcript;
+          }
         }
         
-        processTranscript(finalTranscript || interimTranscript);
+        processTranscript(finalTranscript.trim() || interimTranscript);
       };
 
-      recognition.onerror = (e) => console.warn('Speech recognition error:', e.error);
+      recognition.onerror = (e) => {
+        console.warn('Speech recognition error:', e.error);
+        if (e.error === 'not-allowed' || e.error === 'audio-capture') {
+          showMicPermissionModal();
+          consecutiveErrors = 3; // force stop
+          if (state.isListenMode) toggleListenMode();
+        } else if (e.error === 'service-not-allowed') {
+          alert('Speech recognition service is temporarily unavailable. Please check your browser settings.');
+          consecutiveErrors = 3; // force stop
+          if (state.isListenMode) toggleListenMode();
+        } else if (e.error !== 'no-speech') {
+          consecutiveErrors++;
+          if (consecutiveErrors >= 3) {
+            alert('Speech recognition failed to start repeatedly. Please close other apps using the microphone or check settings.');
+            consecutiveErrors = 0;
+            if (state.isListenMode) toggleListenMode();
+          }
+        }
+      };
 
       recognition.onend = () => {
         els.listenModeBtn.classList.remove('recording');
-        if (state.isListenMode && !state.isListenPaused) {
-          try { recognition.start(); } catch (e) {} // Auto-restart if active (handles silence timeouts)
+
+        // On mobile, use a longer cooldown before restarting to prevent rapid start-stop beep loops.
+        if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
+          const now = Date.now();
+          // Use a longer base delay on mobile to prevent the rapid chirp/flash cycle
+          const baseDelay = isMobileDevice ? 1500 : 300;
+          const delay = (now - lastStartAttempt < 2000) ? 2500 : baseDelay;
+          
+          clearTimeout(restartTimer);
+          restartTimer = setTimeout(() => {
+            if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
+              try {
+                lastStartAttempt = Date.now();
+                recognition.start();
+              } catch (err) {}
+            }
+          }, delay);
         }
       };
     }
-    try { recognition.start(); } catch (e) {}
+
+    // Set dynamic speech language
+    recognition.lang = state.listenLang || 'ar-SA';
+    try {
+      clearTimeout(restartTimer);
+      lastStartAttempt = Date.now();
+      recognition.start();
+    } catch (e) {}
   }
 
   function stopListening() {
-    if (recognition) recognition.stop();
+    clearTimeout(restartTimer);
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (e) {}
+    }
   }
 
   // Fuzzy String Matching (Levenshtein Distance) to handle Speech-To-Text minor mishears
@@ -873,11 +2414,14 @@
 
   function isFuzzyMatch(w1, w2) {
     if (w1 === w2) return true;
-    if (Math.abs(w1.length - w2.length) > 2) return false;
+    const maxLen = Math.max(w1.length, w2.length);
+    if (Math.abs(w1.length - w2.length) > 3) return false; // Max length difference of 3
+    
     const dist = getEditDistance(w1, w2);
-    if (w1.length <= 2) return dist === 0; // Very short words need exact match
-    if (w1.length <= 5) return dist <= 1;  // Allow 1 typo for medium words
-    return dist <= 2;                      // Allow 2 typos for long words
+    if (maxLen <= 2) return dist === 0; // Very short words need exact match
+    if (maxLen <= 4) return dist <= 1;  // Medium-short: allow 1 edit
+    if (maxLen <= 7) return dist <= 2;  // Medium-long: allow 2 edits
+    return dist <= 3;                    // Long words: allow 3 edits
   }
 
   // Score ALL pages globally and return ranked results.
@@ -909,15 +2453,94 @@
   }
 
   function processTranscript(transcript) {
-    if (state.isLoading || !transcript.trim() || state.pageWordsNormalized.length === 0) return;
+    if (state.isLoading || !transcript.trim()) return;
+
+    // Always update the indicator immediately with the last recognized spoken word from the transcript
+    const rawWords = transcript.trim().split(/\s+/);
+    const lastWordRaw = rawWords[rawWords.length - 1] || '...';
+    updateListenIndicator(lastWordRaw, 0.3); // Show with baseline confidence
+
+    if (state.pageWordsNormalized.length === 0) return;
+
+    // ==================== PRACTICE MODE RECITE DETECTION ====================
+    const isPracticeActive = state.teacherState.isPracticeMode || (state.teacherState.timedMode.active && state.teacherState.timedMode.phase === 'test');
+    if (isPracticeActive && state.teacherState.activeGroup) {
+      let spokenWords = cleanSpokenTranscript(transcript);
+      if (spokenWords.length === 0) return;
+
+      // Extract all words of the active group
+      const activeAyahNumbers = new Set(state.teacherState.activeGroup.ayahs.map(a => a.number));
+      const groupWordData = state.pageWordData.filter(wd => activeAyahNumbers.has(wd.ayahNum));
+      
+      let newlyMatched = 0;
+      let lastRecitedAyahNum = null;
+      
+      // Match each spoken word against groupWordData
+      spokenWords.forEach(spoken => {
+        if (spoken.length < 2) return; // skip too short sounds
+        
+        groupWordData.forEach(wd => {
+          // If this word index was already recited, skip it
+          if (state.teacherState.recitedWordIdxs.has(wd.wordIdx)) return;
+          
+          // Test exact or fuzzy match
+          if (wd.text === spoken || isFuzzyMatch(wd.text, spoken)) {
+            state.teacherState.recitedWordIdxs.add(wd.wordIdx);
+            newlyMatched++;
+            lastRecitedAyahNum = wd.ayahNum;
+            state.lastMatchedAyahNum = wd.ayahNum;
+            
+            // Highlight the word as success!
+            const el = els.pageTextOverlay.querySelector(`.word[data-word-idx="${wd.wordIdx}"]`);
+            if (el) {
+              if (state.teacherState.timedMode.active) {
+                el.classList.remove('timed-test-hidden');
+                el.classList.add('timed-test-success');
+              } else {
+                el.classList.remove('practice-hidden');
+                el.classList.add('practice-success');
+              }
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        });
+      });
+      
+      if (newlyMatched > 0) {
+        updateTeacherUI();
+        updateMushafMasks(); // Update the unified block masks
+        if (lastRecitedAyahNum) {
+          const matchedAyah = state.ayahs.find(a => a.number === lastRecitedAyahNum);
+          updateTopStatusBanner(state.teacherState.timedMode.active ? 'timed-test' : 'listening', matchedAyah);
+        } else {
+          updateTopStatusBanner(state.teacherState.timedMode.active ? 'timed-test' : 'listening', null);
+        }
+        
+        // Show status feedback
+        const totalWords = groupWordData.length;
+        const recitedWords = state.teacherState.recitedWordIdxs.size;
+        updateListenIndicator(spokenWords[spokenWords.length - 1] || '...', Math.min(1.0, recitedWords / totalWords));
+        
+        // Check if finished memorizing the group!
+        if (recitedWords >= totalWords) {
+          showToast("🏆 Maa Shaa Allah! You have successfully memorized this group!", true);
+          if (state.teacherState.timedMode.active) {
+            stopTimedMode();
+          } else {
+            stopTeacherPractice();
+          }
+        }
+      }
+      return; // Intercept: do not process normal page highlights/navigation in practice/test mode
+    }
     
     // Debounce: ignore rapid-fire interim results
     const now = Date.now();
     if (now - state.lastTranscriptTime < 150) return;
     state.lastTranscriptTime = now;
     
-    // Normalize and split transcript into words
-    let spokenWords = transcript.split(/\s+/).map(normalizeArabic).filter(w => w.length > 0);
+    // Normalize and split transcript into words using the clean filter
+    let spokenWords = cleanSpokenTranscript(transcript);
     if (spokenWords.length > 10) {
       spokenWords = spokenWords.slice(-10);
     }
@@ -1243,7 +2866,7 @@
     // Only do local matching if we have some confidence we're on the right page.
     // This avoids false positives from fuzzy matching on wrong pages.
     
-    if (anyCurrentPageMatch && (state.pageLocked || currentScore >= 2)) {
+    if (anyCurrentPageMatch) {
       // We have evidence we're on the right page — do local matching for highlighting
       const windowSize = Math.min(4, spokenWords.length);
       let bestLocalMatchIdx = -1;
@@ -1344,9 +2967,19 @@
         }
         const lateralConfidence = lateralMatchFuzzyDist === 0 ? 0.85 : Math.max(0.4, 0.65 - lateralMatchFuzzyDist * 0.08);
         updateListenIndicator(lateralMatchedWord, lateralConfidence);
-        if (lateralMatchedAyahNum && lateralMatchedAyahNum !== state.lastMatchedAyahNum) {
-          state.lastMatchedAyahNum = lateralMatchedAyahNum;
-          revealAyah(lateralMatchedAyahNum);
+        if (lateralMatchedAyahNum) {
+          if (lateralMatchedAyahNum !== state.lastMatchedAyahNum) {
+            state.lastMatchedAyahNum = lateralMatchedAyahNum;
+            revealAyah(lateralMatchedAyahNum);
+          }
+          const matchedAyah = state.ayahs.find(a => a.number === lateralMatchedAyahNum);
+          if (matchedAyah) {
+            if (state.teacherState.timedMode.active) {
+              updateTopStatusBanner(state.teacherState.timedMode.phase === 'study' ? 'timed-study' : 'timed-test', null);
+            } else {
+              updateTopStatusBanner('listening', matchedAyah);
+            }
+          }
         }
       } else if (localMatchSuccess) {
         let matchedAyahNum = null;
@@ -1364,16 +2997,25 @@
         }
         const seqConf = bestMatchConfidence > 0 ? bestMatchConfidence : Math.min(0.85, highestLocalScore / windowSize);
         updateListenIndicator(spokenWords[0] || '', seqConf);
-        if (matchedAyahNum && matchedAyahNum !== state.lastMatchedAyahNum) {
-          state.lastMatchedAyahNum = matchedAyahNum;
-          revealAyah(matchedAyahNum);
+        if (matchedAyahNum) {
+          if (matchedAyahNum !== state.lastMatchedAyahNum) {
+            state.lastMatchedAyahNum = matchedAyahNum;
+            revealAyah(matchedAyahNum);
+          }
+          const matchedAyah = state.ayahs.find(a => a.number === matchedAyahNum);
+          if (matchedAyah) {
+            if (state.teacherState.timedMode.active) {
+              updateTopStatusBanner(state.teacherState.timedMode.phase === 'study' ? 'timed-study' : 'timed-test', null);
+            } else {
+              updateTopStatusBanner('listening', matchedAyah);
+            }
+          }
         }
       } else {
-        updateListenIndicator('', 0);
+        // Keep showing last raw spoken word in indicator
       }
     } else {
-      // No confidence we're on the right page — just update the indicator
-      updateListenIndicator('', 0);
+      // Keep showing last raw spoken word in indicator
     }
   }
 
@@ -1404,8 +3046,13 @@
 
   function toggleMemoryMode() {
     state.isMemoryMode = !state.isMemoryMode;
-    els.memoryModeBtn.setAttribute('aria-pressed', state.isMemoryMode);
-    els.memoryModeBtn.classList.toggle('active', state.isMemoryMode);
+    if (els.wordTranslationPanel) {
+      els.wordTranslationPanel.classList.add('hidden');
+    }
+    if (els.memoryModeBtn) {
+      els.memoryModeBtn.setAttribute('aria-pressed', state.isMemoryMode);
+      els.memoryModeBtn.classList.toggle('active', state.isMemoryMode);
+    }
 
     if (state.isMemoryMode) {
       // 🔍 Trigger CV detection on first memory mode use (deferred optimization)
@@ -1800,7 +3447,7 @@
   }
 
   function updateGlobalStats() {
-    els.pagesViewed.textContent = state.pagesViewed.size;
+    els.pagesViewed.textContent = state.currentPage || 1;
   }
 
   // ===================== NAVIGATION =====================
@@ -1949,6 +3596,872 @@
     {num:114,name:'An-Nas',              arabic:'الناس',            page:604},
   ];
 
+  // ===================== THEMATIC TEACHER MEMORIZER =====================
+  function generateThematicGroups(ayahs) {
+    if (!ayahs || ayahs.length === 0) return [];
+    
+    const groups = [];
+    let currentGroup = [];
+    
+    for (let i = 0; i < ayahs.length; i++) {
+      currentGroup.push(ayahs[i]);
+      
+      const nextAyah = ayahs[i + 1];
+      const currentSurahNum = ayahs[i].surah ? ayahs[i].surah.number : 0;
+      const nextSurahNum = nextAyah && nextAyah.surah ? nextAyah.surah.number : 0;
+      const differentSurah = nextAyah && nextSurahNum !== currentSurahNum;
+      
+      let shouldCloseGroup = false;
+      if (currentSurahNum === 1) {
+        // Group all ayahs of Surah Al-Fatiha together
+        shouldCloseGroup = differentSurah || !nextAyah;
+      } else {
+        // Keep groups at 2 to 3 ayahs for other surahs
+        shouldCloseGroup = currentGroup.length >= 3 || differentSurah || !nextAyah;
+      }
+      
+      if (shouldCloseGroup) {
+        groups.push({
+          id: groups.length + 1,
+          ayahs: [...currentGroup],
+          theme: determineTheme(currentGroup)
+        });
+        currentGroup = [];
+      }
+    }
+    return groups;
+  }
+
+  function determineTheme(groupAyahs) {
+    let combinedText = groupAyahs.map(a => {
+      const trans = getEnglishTranslation(a.surah.number, a.numberInSurah) || "";
+      return trans.toLowerCase();
+    }).join(" ");
+    
+    if (combinedText.includes("believ") || combinedText.includes("faith") || combinedText.includes("righteous")) return "Believers & Righteous Deeds / الإيمان والعمل الصالح";
+    if (combinedText.includes("disbeliev") || combinedText.includes("reject") || combinedText.includes("deny")) return "Warning to Rejecters / الإنذار والموعظة";
+    if (combinedText.includes("moses") || combinedText.includes("musa") || combinedText.includes("pharaoh")) return "Story of Moses & Pharaoh / موسى وفرعون";
+    if (combinedText.includes("abraham") || combinedText.includes("ibrahim")) return "Prophet Abraham / إبراهيم عليه السلام";
+    if (combinedText.includes("jesus") || combinedText.includes("isa") || combinedText.includes("mary")) return "Prophet Jesus / عيسى عليه السلام";
+    if (combinedText.includes("creation") || combinedText.includes("heavens") || combinedText.includes("earth") || combinedText.includes("signs")) return "Signs of Divine Creation / آيات الخلق والتدبر";
+    if (combinedText.includes("paradise") || combinedText.includes("garden")) return "Rewards of Paradise / الجنة ونعيمها";
+    if (combinedText.includes("hell") || combinedText.includes("fire") || combinedText.includes("punish")) return "Admonition of Hellfire / عذاب النار";
+    if (combinedText.includes("mercy") || combinedText.includes("forgiv") || combinedText.includes("merciful")) return "Divine Mercy & Forgiveness / الرحمة والمغفرة";
+    if (combinedText.includes("pray") || combinedText.includes("zakat") || combinedText.includes("charity")) return "Worship, Prayer & Zakat / العبادات";
+    if (combinedText.includes("judgment") || combinedText.includes("hour") || combinedText.includes("resurrection") || combinedText.includes("day")) return "Day of Resurrection & Account / الحساب والقيامة";
+    if (combinedText.includes("book") || combinedText.includes("quran") || combinedText.includes("reveal")) return "The Holy Quran / القرآن الكريم والوحي";
+    
+    // Fallback: name by Surah & Ayah range
+    const first = groupAyahs[0];
+    const last = groupAyahs[groupAyahs.length - 1];
+    return `Ayahs ${first.numberInSurah} - ${last.numberInSurah} of ${first.surah.englishName || ('Surah ' + first.surah.number)}`;
+  }
+
+  function populateGlobalTimedRange() {
+    if (!els.globalTimedStart || !els.globalTimedEnd) return;
+    
+    // Save current selection if possible
+    const prevStartVal = els.globalTimedStart.value;
+    const prevEndVal = els.globalTimedEnd.value;
+    
+    els.globalTimedStart.innerHTML = "";
+    els.globalTimedEnd.innerHTML = "";
+    
+    if (!state.ayahs || state.ayahs.length === 0) return;
+    
+    state.ayahs.forEach((ayah, idx) => {
+      const opt = document.createElement("option");
+      opt.value = idx;
+      const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+      opt.textContent = `${surahName} ${ayah.numberInSurah}`;
+      els.globalTimedStart.appendChild(opt);
+    });
+    
+    // Default to the first ayah
+    let startIdx = 0;
+    if (prevStartVal !== "" && parseInt(prevStartVal) >= 0 && parseInt(prevStartVal) < state.ayahs.length) {
+      startIdx = parseInt(prevStartVal);
+    }
+    els.globalTimedStart.value = startIdx;
+    
+    // Update end dropdown based on startIdx
+    updateGlobalTimedEndDropdown(startIdx, prevEndVal);
+  }
+
+  function updateGlobalTimedEndDropdown(startIdx, preferredEndVal) {
+    if (!els.globalTimedEnd) return;
+    
+    const currentEndVal = preferredEndVal !== undefined ? preferredEndVal : els.globalTimedEnd.value;
+    els.globalTimedEnd.innerHTML = "";
+    
+    if (!state.ayahs || state.ayahs.length === 0) return;
+    
+    for (let i = startIdx; i < state.ayahs.length; i++) {
+      const ayah = state.ayahs[i];
+      const opt = document.createElement("option");
+      opt.value = i;
+      const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+      opt.textContent = `${surahName} ${ayah.numberInSurah}`;
+      els.globalTimedEnd.appendChild(opt);
+    }
+    
+    // Default to the last ayah on the page
+    let defaultEnd = state.ayahs.length - 1;
+    if (currentEndVal !== "" && parseInt(currentEndVal) >= startIdx && parseInt(currentEndVal) < state.ayahs.length) {
+      defaultEnd = parseInt(currentEndVal);
+    }
+    els.globalTimedEnd.value = defaultEnd;
+  }
+
+  function renderTeacherGroups() {
+    state.teacherState.customRanges = state.teacherState.customRanges || {};
+    const groups = generateThematicGroups(state.ayahs);
+    state.teacherState.thematicGroups = groups;
+    
+    if (groups.length === 0) {
+      els.teacherGroupList.innerHTML = `
+        <div class="ayah-list-empty">
+          <div class="empty-icon">🏵️</div>
+          <p>No thematic groups available for this page.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    const fragment = document.createDocumentFragment();
+    
+    groups.forEach(group => {
+      const card = document.createElement("div");
+      card.className = "teacher-card";
+      card.dataset.groupId = group.id;
+      
+      const firstAyah = group.ayahs[0];
+      const lastAyah = group.ayahs[group.ayahs.length - 1];
+      const ayahRangeStr = `Ayahs ${firstAyah.numberInSurah} - ${lastAyah.numberInSurah}`;
+      
+      const isLoopPlaying = state.teacherState.isPlaying && state.teacherState.activeGroup?.id === group.id;
+      const isPracticing = state.teacherState.isPracticeMode && state.teacherState.activeGroup?.id === group.id;
+      const isTimedActive = state.teacherState.timedMode.active && state.teacherState.timedMode.groupId === group.id;
+      
+      if (isLoopPlaying) card.classList.add("playing");
+      if (isPracticing) card.classList.add("practicing");
+      if (isTimedActive) card.classList.add("timed-active");
+
+      // Custom range loading
+      const savedRange = state.teacherState.customRanges[group.id] || { startIdx: 0, endIdx: group.ayahs.length - 1 };
+      let startIdx = Math.max(0, Math.min(group.ayahs.length - 1, savedRange.startIdx));
+      let endIdx = Math.max(startIdx, Math.min(group.ayahs.length - 1, savedRange.endIdx));
+
+      let totalWords = 0;
+      group.ayahs.forEach(ayah => {
+        state.pageWordData.forEach(wd => {
+          if (wd.ayahNum === ayah.number) totalWords++;
+        });
+      });
+
+      const recitedWords = (isPracticing || (isTimedActive && state.teacherState.timedMode.phase === 'test')) ? state.teacherState.recitedWordIdxs.size : 0;
+      const progressPct = totalWords > 0 ? (recitedWords / totalWords) * 100 : 0;
+      
+      let statusBannerHtml = "";
+      if (isLoopPlaying) {
+        const job = state.teacherState.jobQueue[state.teacherState.currentJobIdx];
+        if (job) {
+          let rangeText = "";
+          if (job.ayahs.length > 3) {
+            rangeText = `${job.ayahs[0].numberInSurah} to ${job.ayahs[job.ayahs.length - 1].numberInSurah}`;
+          } else {
+            rangeText = job.ayahs.map(a => a.numberInSurah).join(", ");
+          }
+          const completedRepeats = job.repeatsTotal - job.repeatsRemaining + 1;
+          const labelPrefix = state.teacherState.isGlobalPageLoop ? "🔊 Global Loop: Ayah" : "🔊 Reciting Ayah";
+          statusBannerHtml = `
+            <div class="teacher-status-banner">
+              <span>${labelPrefix} ${rangeText} (Repeat ${completedRepeats}/${job.repeatsTotal})</span>
+            </div>
+          `;
+        }
+      } else if (isPracticing) {
+        statusBannerHtml = `
+          <div class="teacher-status-banner">
+            <span>🎙️ Recite group from memory... (${recitedWords}/${totalWords} words)</span>
+          </div>
+        `;
+      } else if (isTimedActive) {
+        const timeFormatted = formatCountdownTime(state.teacherState.timedMode.timeLeft);
+        if (state.teacherState.timedMode.phase === 'study') {
+          statusBannerHtml = `
+            <div class="teacher-status-banner timed-study-banner">
+              <span>⏳ Nazira Reading Mode: <strong>${timeFormatted}</strong> remaining</span>
+            </div>
+          `;
+        } else {
+          statusBannerHtml = `
+            <div class="teacher-status-banner timed-test-banner">
+              <span>🎙️ Close Book Mode: <strong>${timeFormatted}</strong> remaining (${recitedWords}/${totalWords})</span>
+            </div>
+          `;
+        }
+      }
+
+      card.innerHTML = `
+        <div class="teacher-card-header">
+          <div class="teacher-card-theme">${group.theme}</div>
+          <div class="teacher-card-subtitle">${firstAyah.surah.englishName} · ${ayahRangeStr}</div>
+        </div>
+        ${statusBannerHtml}
+        
+        <div class="teacher-range-selector">
+          <span class="range-label">Range:</span>
+          <div class="range-dropdowns">
+            <select class="range-select start-select">
+              ${group.ayahs.map((ayah, idx) => `
+                <option value="${idx}" ${idx === startIdx ? 'selected' : ''}>Ayah ${ayah.numberInSurah}</option>
+              `).join('')}
+            </select>
+            <span class="range-to">to</span>
+            <select class="range-select end-select">
+              ${group.ayahs.slice(startIdx).map((ayah, offset) => {
+                const idx = startIdx + offset;
+                return `<option value="${idx}" ${idx === endIdx ? 'selected' : ''}>Ayah ${ayah.numberInSurah}</option>`;
+              }).join('')}
+            </select>
+          </div>
+        </div>
+        
+        <div class="teacher-card-actions">
+          <button class="teacher-btn btn-timed${isTimedActive ? ' active-timed' : ''}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+            <span>${isTimedActive ? 'Stop Timed' : '40/20 minutes timed'}</span>
+          </button>
+          <button class="teacher-btn btn-loop${isLoopPlaying ? ' active' : ''}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+            <span>${isLoopPlaying ? 'Stop Loop' : 'Teacher Loop'}</span>
+          </button>
+          <button class="teacher-btn btn-practice${isPracticing ? ' active-practice' : ''}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zM17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            <span>${isPracticing ? 'Stop Practice' : 'Practice Recite'}</span>
+          </button>
+        </div>
+        ${(isPracticing || (isTimedActive && state.teacherState.timedMode.phase === 'test')) ? `
+          <div class="teacher-progress">
+            <div class="teacher-progress-bar">
+              <div class="teacher-progress-fill" style="width: ${progressPct}%"></div>
+            </div>
+          </div>
+        ` : ''}
+      `;
+
+      const startSelect = card.querySelector(".start-select");
+      const endSelect = card.querySelector(".end-select");
+
+      const updateEndSelect = () => {
+        const startVal = parseInt(startSelect.value);
+        const currentEndVal = parseInt(endSelect.value);
+        
+        endSelect.innerHTML = "";
+        for (let i = startVal; i < group.ayahs.length; i++) {
+          const ayah = group.ayahs[i];
+          const opt = document.createElement("option");
+          opt.value = i;
+          opt.textContent = `Ayah ${ayah.numberInSurah}`;
+          if (i === currentEndVal || (i === group.ayahs.length - 1 && currentEndVal < startVal)) {
+            opt.selected = true;
+          }
+          endSelect.appendChild(opt);
+        }
+        saveRange();
+      };
+      
+      const saveRange = () => {
+        state.teacherState.customRanges[group.id] = {
+          startIdx: parseInt(startSelect.value),
+          endIdx: parseInt(endSelect.value)
+        };
+      };
+      
+      startSelect.addEventListener("change", updateEndSelect);
+      endSelect.addEventListener("change", saveRange);
+
+      const getActiveGroupWithRange = () => {
+        const currentStart = parseInt(startSelect.value);
+        const currentEnd = parseInt(endSelect.value);
+        return {
+          id: group.id,
+          theme: group.theme,
+          ayahs: group.ayahs.slice(currentStart, currentEnd + 1)
+        };
+      };
+      
+      const loopBtn = card.querySelector(".btn-loop");
+      loopBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isLoopPlaying) {
+          stopTeacherLoop();
+        } else {
+          startTeacherLoop(getActiveGroupWithRange());
+        }
+      });
+      
+      const practiceBtn = card.querySelector(".btn-practice");
+      practiceBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isPracticing) {
+          stopTeacherPractice();
+        } else {
+          startTeacherPractice(getActiveGroupWithRange());
+        }
+      });
+
+      const timedBtn = card.querySelector(".btn-timed");
+      timedBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isTimedActive) {
+          stopTimedMode();
+        } else {
+          startTimedMode(getActiveGroupWithRange());
+        }
+      });
+      
+      fragment.appendChild(card);
+    });
+    
+    els.teacherGroupList.innerHTML = "";
+    els.teacherGroupList.appendChild(fragment);
+  }
+
+  function startTeacherLoop(group) {
+    stopTeacherPractice();
+    
+    // Automatically switch to text mode when playing recitation in thematic teacher mode
+    /*
+    if (!state.isTextMode) {
+      toggleTextMode();
+    }
+    */
+    
+    state.teacherState.activeGroup = group;
+    state.teacherState.isPlaying = true;
+    updateThemeVisualizer(group);
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.add('teacher-active');
+    
+    // Construct reinforcement loop job queue (7 repetitions per user request)
+    const queue = [];
+    const ayahs = group.ayahs;
+    
+    if (ayahs.length >= 1) {
+      queue.push({ ayahs: [ayahs[0]], repeatsTotal: 7, repeatsRemaining: 7 });
+    }
+    for (let i = 1; i < ayahs.length; i++) {
+      queue.push({ ayahs: [ayahs[i]], repeatsTotal: 7, repeatsRemaining: 7 });
+      queue.push({ ayahs: ayahs.slice(0, i + 1), repeatsTotal: 7, repeatsRemaining: 7 });
+    }
+    
+    state.teacherState.jobQueue = queue;
+    state.teacherState.currentJobIdx = 0;
+    state.teacherState.currentAyahIdxInJob = 0;
+    
+    playCurrentTeacherAyah();
+  }
+
+  function startGlobalPageLoop() {
+    stopTeacherPractice();
+    stopTeacherLoop();
+    
+    const startVal = parseInt(els.globalTimedStart.value);
+    const endVal = parseInt(els.globalTimedEnd.value);
+    if (isNaN(startVal) || isNaN(endVal) || startVal > endVal) {
+      showToast("Invalid range selected", false);
+      return;
+    }
+    
+    const selectedAyahs = state.ayahs.slice(startVal, endVal + 1);
+    if (selectedAyahs.length === 0) {
+      showToast("No ayahs found in the selected range.", false);
+      return;
+    }
+    
+    state.teacherState.isPlaying = true;
+    state.teacherState.isGlobalPageLoop = true;
+    
+    // Construct reinforcement loop job queue over the selected range
+    const queue = [];
+    if (selectedAyahs.length >= 1) {
+      queue.push({
+        title: `Ayah ${selectedAyahs[0].numberInSurah} Loop`,
+        ayahs: [selectedAyahs[0]],
+        repeatsTotal: 7,
+        repeatsRemaining: 7
+      });
+    }
+    for (let i = 1; i < selectedAyahs.length; i++) {
+      // Individual Ayah Loop
+      queue.push({
+        title: `Ayah ${selectedAyahs[i].numberInSurah} Loop`,
+        ayahs: [selectedAyahs[i]],
+        repeatsTotal: 7,
+        repeatsRemaining: 7
+      });
+      // Joint Loop from first selected to i-th selected
+      queue.push({
+        title: `Ayahs ${selectedAyahs[0].numberInSurah} to ${selectedAyahs[i].numberInSurah} Reinforce`,
+        ayahs: selectedAyahs.slice(0, i + 1),
+        repeatsTotal: 7,
+        repeatsRemaining: 7
+      });
+    }
+    
+    state.teacherState.jobQueue = queue;
+    state.teacherState.currentJobIdx = 0;
+    state.teacherState.currentAyahIdxInJob = 0;
+    
+    // Create a dummy group object for visualizer/banner
+    const firstAyah = selectedAyahs[0];
+    const lastAyah = selectedAyahs[selectedAyahs.length - 1];
+    const rangeText = `${firstAyah.surah.englishName} (Ayahs ${firstAyah.numberInSurah} - ${lastAyah.numberInSurah})`;
+    
+    const customGroup = {
+      id: 'global-loop',
+      theme: 'Global Selection Loop',
+      ayahs: selectedAyahs
+    };
+    
+    state.teacherState.activeGroup = customGroup;
+    updateThemeVisualizer(customGroup);
+    
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.add('teacher-active');
+    
+    if (els.globalPageLoopBtn) {
+      els.globalPageLoopBtn.classList.add('active');
+    }
+    
+    playCurrentTeacherAyah();
+    showToast(`Global Selection Loop Started (Reinforcing: ${rangeText})`, true);
+  }
+
+  function stopTeacherLoop() {
+    stopAllRecitation();
+    updateTeacherUI();
+  }
+
+  function playCurrentTeacherAyah() {
+    if (!state.teacherState.isPlaying) return;
+    
+    const job = state.teacherState.jobQueue[state.teacherState.currentJobIdx];
+    if (!job) {
+      // Completed all loop jobs successfully!
+      const wasGlobal = state.teacherState.isGlobalPageLoop;
+      stopTeacherLoop();
+      showToast(wasGlobal ? "Global Page Memorized! Welldone." : "Group Memorized! Press 'Practice Recite' to test yourself.", true);
+      return;
+    }
+    
+    const ayah = job.ayahs[state.teacherState.currentAyahIdxInJob];
+    if (!ayah) {
+      // Completed all ayahs in the current repeat
+      job.repeatsRemaining--;
+      if (job.repeatsRemaining > 0) {
+        state.teacherState.currentAyahIdxInJob = 0;
+        playCurrentTeacherAyah();
+      } else {
+        // Go to next loop job
+        state.teacherState.currentJobIdx++;
+        state.teacherState.currentAyahIdxInJob = 0;
+        playCurrentTeacherAyah();
+      }
+      return;
+    }
+    
+    // Dynamically detect which group this ayah belongs to, to update visualizer & status banner correctly
+    if (!state.teacherState.isGlobalPageLoop) {
+      const activeGroup = state.teacherState.thematicGroups.find(g => 
+        g.ayahs.some(a => a.number === ayah.number)
+      );
+      if (activeGroup) {
+        state.teacherState.activeGroup = activeGroup;
+        updateThemeVisualizer(activeGroup);
+      }
+    }
+    
+    updateTopStatusBanner('reciting-teacher', ayah);
+    highlightTeacherAyah(ayah.number);
+    updateTeacherUI();
+
+    const audioUrl = `https://cdn.islamic.network/quran/audio/128/${state.reciter}/${ayah.number}.mp3`;
+    state.teacherState.audioPlayer = new Audio(audioUrl);
+    
+    const surahName = ayah.surah ? (ayah.surah.englishName || `Surah ${ayah.surah.number}`) : 'Surah';
+    const labelText = `${surahName}, Ayah ${ayah.numberInSurah} (Teacher Loop)`;
+    bindAudioPlayer(state.teacherState.audioPlayer, labelText);
+
+    state.teacherState.audioPlayer.play().catch(err => {
+      console.warn("Audio play failed, skipping", err);
+      setTimeout(advanceTeacherAyah, 2000);
+    });
+    
+    state.teacherState.audioPlayer.onended = () => {
+      advanceTeacherAyah();
+    };
+  }
+
+  function advanceTeacherAyah() {
+    state.teacherState.currentAyahIdxInJob++;
+    playCurrentTeacherAyah();
+  }
+
+  function highlightTeacherAyah(ayahGlobalNum) {
+    document.querySelectorAll(".word.playing-ayah").forEach(el => {
+      el.classList.remove("playing-ayah");
+    });
+    const words = els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayahGlobalNum}"]`);
+    words.forEach(el => {
+      el.classList.add("playing-ayah");
+    });
+    
+    if (words.length > 0) {
+      const targetScrollEl = words[0];
+      
+      // Calculate scroll offset to clear sticky top elements (status banner + theme card)
+      let stickyHeight = 20; // Default margin
+      
+      // Check banner visibility (or if it is about to be displayed in active teacher/play state)
+      const isBannerVisible = els.topStatusBanner && (!els.topStatusBanner.classList.contains('hidden') || state.teacherState.isPlaying || playingAyahNum !== null);
+      if (isBannerVisible) {
+        stickyHeight += els.topStatusBanner.offsetHeight || 45;
+      }
+      
+      // Check theme visualizer card visibility
+      const isVisualizerVisible = els.themeVisualizerCard && (!els.themeVisualizerCard.classList.contains('hidden') || (state.teacherState.isPlaying && !state.teacherState.isGlobalPageLoop));
+      if (isVisualizerVisible) {
+        stickyHeight += els.themeVisualizerCard.offsetHeight || 80;
+      }
+      
+      // Add extra padding for graceful breathing room below sticky headers
+      stickyHeight += 15;
+      
+      const rect = targetScrollEl.getBoundingClientRect();
+      
+      // Only scroll if the ayah is not already comfortably visible in the viewport
+      const visibleTop = stickyHeight;
+      const visibleBottom = window.innerHeight - 100; // Leave breathing room for bottom bar / controls
+      const isAlreadyVisible = (rect.top >= visibleTop && rect.bottom <= visibleBottom);
+      
+      if (!isAlreadyVisible) {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const elementDocTop = rect.top + scrollTop;
+        
+        let targetScrollY = elementDocTop - stickyHeight;
+        
+        // If target is near the top of the page, scroll all the way to 0
+        // to show Surah headers / Basmalah gracefully
+        if (targetScrollY < 60) {
+          targetScrollY = 0;
+        }
+        
+        window.scrollTo({
+          top: targetScrollY,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }
+
+  function startTeacherPractice(group) {
+    stopTeacherLoop();
+    
+    state.teacherState.activeGroup = group;
+    state.teacherState.isPracticeMode = true;
+    state.teacherState.recitedWordIdxs.clear();
+    updateThemeVisualizer(group);
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.add('teacher-active');
+    
+    // Hide/Mask all word overlays belonging to this group
+    document.querySelectorAll(".word.practice-hidden, .word.practice-success").forEach(el => {
+      el.classList.remove("practice-hidden", "practice-success");
+    });
+    
+    group.ayahs.forEach(ayah => {
+      els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayah.number}"]`).forEach(el => {
+        el.classList.add("practice-hidden");
+      });
+    });
+    
+    // Update the block masks on page call
+    updateMushafMasks();
+    
+    // Automatically turn on Listen Mode to start capturing voice recitation
+    if (!state.isListenMode) {
+      toggleListenMode();
+    }
+    
+    updateTeacherUI();
+    updateTopStatusBanner('listening', null);
+    showToast("Practice Mode Active: Recite the hidden verses from memory!", true);
+  }
+
+  function stopTeacherPractice() {
+    state.teacherState.isPracticeMode = false;
+    state.teacherState.activeGroup = null;
+    state.teacherState.recitedWordIdxs.clear();
+    
+    // Restore elements
+    document.querySelectorAll(".word.practice-hidden, .word.practice-success").forEach(el => {
+      el.classList.remove("practice-hidden", "practice-success");
+    });
+    
+    // Clear block masks
+    updateMushafMasks();
+    
+    updateTeacherUI();
+    updateTopStatusBanner('idle');
+    updateThemeVisualizer(null);
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.remove('teacher-active');
+  }
+
+  function startTimedMode(group) {
+    if (!group) return;
+    
+    // Stop all loops or normal practice modes first
+    stopTeacherLoop();
+    stopTeacherPractice();
+
+    if (els.wordTranslationPanel) {
+      els.wordTranslationPanel.classList.add('hidden');
+    }
+    
+    // Initialize timed state
+    state.teacherState.timedMode.active = true;
+    state.teacherState.timedMode.groupId = group.id;
+    state.teacherState.timedMode.phase = 'study';
+    state.teacherState.timedMode.timeLeft = 40 * 60; // 40 minutes (2400 seconds)
+    state.teacherState.timedMode.rangeText = getGroupAyahRangeText(group);
+    
+    state.teacherState.activeGroup = group;
+    state.teacherState.recitedWordIdxs.clear();
+    updateThemeVisualizer(group);
+    
+    // Add page-frame active styles if needed
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.add('teacher-active');
+    
+    // Set text overlay timed active state for pointer-events
+    if (els.pageTextOverlay) {
+      els.pageTextOverlay.classList.add('timed-mode-active');
+      els.pageTextOverlay.classList.remove('timed-test-active');
+    }
+    
+    // Apply study highlights (rectangle borders)
+    applyStudyHighlight(group);
+    
+    // Start interval
+    if (state.teacherState.timedMode.timerInterval) {
+      clearInterval(state.teacherState.timedMode.timerInterval);
+    }
+    state.teacherState.timedMode.timerInterval = setInterval(tickTimedMode, 1000);
+    
+    // Automatically turn on Listen Mode to start capturing voice recitation
+    if (!state.isListenMode) {
+      toggleListenMode();
+    }
+    
+    updateTeacherUI();
+    updateTopStatusBanner('timed-study', null);
+    showToast("Timed Study Mode Started: 40 minutes to practice.", true);
+  }
+
+  function transitionToTimedTest() {
+    if (!state.teacherState.timedMode.active || !state.teacherState.activeGroup) return;
+    
+    state.teacherState.timedMode.phase = 'test';
+    state.teacherState.timedMode.timeLeft = 20 * 60; // 20 minutes (1200 seconds)
+    state.teacherState.recitedWordIdxs.clear();
+    
+    if (els.pageTextOverlay) {
+      els.pageTextOverlay.classList.add('timed-test-active');
+    }
+    
+    // Remove study highlights and apply test masks (solid overlays to hide calligraphy/text)
+    applyTestMask(state.teacherState.activeGroup);
+    
+    // Keep Listen Mode on
+    if (!state.isListenMode) {
+      toggleListenMode();
+    }
+    
+    updateTeacherUI();
+    updateTopStatusBanner('timed-test', null);
+    showToast("Study time finished! Test Phase Started: 20 minutes.", true);
+  }
+
+  function applyStudyHighlight(group) {
+    // Clear all timed classes first
+    clearAllTimedHighlights();
+    
+    group.ayahs.forEach(ayah => {
+      els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayah.number}"]`).forEach(el => {
+        el.classList.add("timed-rect-highlight");
+      });
+    });
+  }
+
+  function applyTestMask(group) {
+    // Clear all timed classes first
+    clearAllTimedHighlights();
+    
+    group.ayahs.forEach(ayah => {
+      els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayah.number}"]`).forEach(el => {
+        el.classList.add("timed-test-hidden");
+      });
+    });
+
+    updateMushafMasks();
+  }
+
+  function clearAllTimedHighlights() {
+    document.querySelectorAll(".word.timed-rect-highlight, .word.timed-test-hidden, .word.timed-test-success").forEach(el => {
+      el.classList.remove("timed-rect-highlight", "timed-test-hidden", "timed-test-success");
+    });
+
+    updateMushafMasks();
+  }
+
+  function tickTimedMode() {
+    if (!state.teacherState.timedMode.active) return;
+    
+    state.teacherState.timedMode.timeLeft--;
+    
+    if (state.teacherState.timedMode.timeLeft <= 0) {
+      if (state.teacherState.timedMode.phase === 'study') {
+        transitionToTimedTest();
+      } else {
+        showToast("⏰ Timer complete! Timed practice finished.", true);
+        stopTimedMode();
+      }
+    } else {
+      // Update top banner
+      updateTopStatusBanner(state.teacherState.timedMode.phase === 'study' ? 'timed-study' : 'timed-test', null);
+      // Update sidebar card (e.g. remaining countdown)
+      updateTeacherCardCountdown();
+      
+      // Also update global timed button text if it is global timed mode
+      if (state.teacherState.timedMode.groupId === 'global-timed') {
+        updateGlobalTimedUI();
+      }
+    }
+  }
+
+  function stopTimedMode() {
+    state.teacherState.timedMode.active = false;
+    state.teacherState.timedMode.groupId = null;
+    state.teacherState.timedMode.phase = 'study';
+    state.teacherState.timedMode.timeLeft = 0;
+    
+    if (state.teacherState.timedMode.timerInterval) {
+      clearInterval(state.teacherState.timedMode.timerInterval);
+      state.teacherState.timedMode.timerInterval = null;
+    }
+    
+    if (els.pageTextOverlay) {
+      els.pageTextOverlay.classList.remove('timed-mode-active');
+      els.pageTextOverlay.classList.remove('timed-test-active');
+    }
+    
+    clearAllTimedHighlights();
+    state.teacherState.activeGroup = null;
+    state.teacherState.recitedWordIdxs.clear();
+    
+    // Auto-disable microphone if it was turned on for timed mode
+    if (state.isListenMode) {
+      toggleListenMode();
+    }
+    
+    updateTeacherUI();
+    updateTopStatusBanner('idle');
+    updateThemeVisualizer(null);
+    const frameEl = document.querySelector('.page-frame');
+    if (frameEl) frameEl.classList.remove('teacher-active');
+  }
+
+  function formatCountdownTime(totalSeconds) {
+    if (totalSeconds < 0) totalSeconds = 0;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function updateTeacherCardCountdown() {
+    if (!state.teacherState.timedMode.active) return;
+    const activeGroupId = state.teacherState.timedMode.groupId;
+    const card = els.teacherGroupList?.querySelector(`.teacher-card[data-group-id="${activeGroupId}"]`);
+    if (!card) return;
+    
+    const timeFormatted = formatCountdownTime(state.teacherState.timedMode.timeLeft);
+    const strongEl = card.querySelector(".teacher-status-banner strong");
+    if (strongEl) {
+      strongEl.textContent = timeFormatted;
+    }
+  }
+
+  function getTimedModeWordCount() {
+    if (!state.teacherState.activeGroup) return 0;
+    let count = 0;
+    state.teacherState.activeGroup.ayahs.forEach(ayah => {
+      state.pageWordData.forEach(wd => {
+        if (wd.ayahNum === ayah.number) count++;
+      });
+    });
+    return count;
+  }
+
+  function getGroupAyahRangeText(group) {
+    if (!group || !group.ayahs.length) return "";
+    const first = group.ayahs[0];
+    const last = group.ayahs[group.ayahs.length - 1];
+    return `Ayahs ${first.numberInSurah} - ${last.numberInSurah}`;
+  }
+
+  // Expose skip/stop functions to window for status banner buttons
+  window.__skipToTest = function() {
+    transitionToTimedTest();
+  };
+  window.__stopTimedMode = function() {
+    stopTimedMode();
+  };
+
+  function updateGlobalTimedUI() {
+    if (!els.globalTimedBtn) return;
+    const isGlobalTimedActive = state.teacherState.timedMode.active && state.teacherState.timedMode.groupId === 'global-timed';
+    const isAnyTimedActive = state.teacherState.timedMode.active;
+    
+    const span = els.globalTimedBtn.querySelector('span');
+    if (span) {
+      if (isGlobalTimedActive) {
+        const phaseLabel = state.teacherState.timedMode.phase === 'study' ? 'Study' : 'Test';
+        const timeFormatted = formatCountdownTime(state.teacherState.timedMode.timeLeft);
+        span.textContent = `Stop Timed (${phaseLabel}: ${timeFormatted})`;
+      } else {
+        span.textContent = '40/20 minutes timed';
+      }
+    }
+    
+    if (isGlobalTimedActive) {
+      els.globalTimedBtn.classList.add('active-timed');
+    } else {
+      els.globalTimedBtn.classList.remove('active-timed');
+    }
+    
+    if (els.globalTimedStart) els.globalTimedStart.disabled = isAnyTimedActive;
+    if (els.globalTimedEnd) els.globalTimedEnd.disabled = isAnyTimedActive;
+  }
+
+  function updateTeacherUI() {
+    renderTeacherGroups();
+    updateGlobalTimedUI();
+  }
+
   // ===================== CSV / ENGLISH TRANSLATIONS =====================
   function parseCSV(text) {
     const rows = [];
@@ -2002,9 +4515,16 @@
 
   async function fetchEnglishTranslations() {
     try {
-      const response = await fetch(CSV_PATH);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const text = await response.text();
+      let text;
+      if (window.quranEnglishCSV) {
+        text = window.quranEnglishCSV;
+        console.log('Successfully loaded English translations from global script!');
+      } else {
+        const response = await fetch(CSV_PATH);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        text = await response.text();
+        console.log('Successfully loaded English translations via fetch!');
+      }
       const rows = parseCSV(text);
 
       // Skip header row
@@ -2048,6 +4568,9 @@
         renderSurahList();
       }
 
+      // Re-render teacher groups so they get the correct keyword themes immediately
+      renderTeacherGroups();
+
       console.log(`Loaded English translations for ${Object.keys(translations).length} surahs`);
     } catch (err) {
       console.warn('Could not load English translations from CSV:', err);
@@ -2059,46 +4582,22 @@
     return state.englishTranslations[surahNum][ayahNum] || '';
   }
 
-  async function loadCustomQuranData() {
+  async function loadLocalDatabases() {
+    if (state.quranPagesDb && state.quranPageLines) {
+      console.log('Successfully initialized Quran databases from global scripts!');
+      return;
+    }
     try {
-      // Fetch a clean Plain Text file instead of a binary Word document
-      const response = await fetch('UthmaniScriptQuran.txt');
-      if (response.ok) {
-        const rawText = await response.text();
-        state.customQuranData = parseDocFile(rawText);
-        console.log('Successfully extracted custom text from UthmaniScriptQuran.txt!');
-      }
+      const [dbRes, linesRes] = await Promise.all([
+        fetch('quran_pages_db.json'),
+        fetch('quran_page_lines.json')
+      ]);
+      state.quranPagesDb = await dbRes.json();
+      state.quranPageLines = await linesRes.json();
+      console.log('Successfully loaded local Quran databases via fetch!');
     } catch (err) {
-      console.warn('Could not read .txt file locally, safely falling back to API text.');
+      console.error('Failed to load local Quran databases:', err);
     }
-  }
-
-  function parseDocFile(rawContent) {
-    if (!rawContent) return { extractedAyahs: [] };
-    
-    // Clean up horizontal whitespace but PRESERVE newlines (\n) so it wraps exactly like the doc
-    let cleanText = rawContent.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
-    
-    // Split the document into an array of ayahs using the end marker
-    const rawAyahs = cleanText.split('﴾');
-    // Remove ONLY leading horizontal spaces, keeping \n intact for perfect vertical layout
-    const extractedAyahs = rawAyahs.map(text => text.replace(/^[ \t]+/, '') + ' ﴾').filter(b => b.trim().length > 1);
-
-    return { extractedAyahs };
-  }
-
-  function findMatchingAyahInDoc(apiAyah, extractedAyahs) {
-    const arabicNumbers = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-    const ayahNumStr = String(apiAyah.numberInSurah).split('').map(d => arabicNumbers[d]).join('');
-    
-    // Find the ayah in the extracted document array that matches this number
-    const found = extractedAyahs.find(text => text.includes(ayahNumStr) && text.includes('﴾'));
-    
-    if (found) {
-      // Strip the native document brackets but keep the structural whitespace (\n)
-      return found.replace(/﴿.*?﴾/g, '').replace(/^[ \t]+/, '');
-    }
-    return null;
   }
 
   function showToast(message, isSuccess = false) {
@@ -2112,28 +4611,91 @@
     setTimeout(() => els.systemToast.classList.add('hidden'), 3500);
   }
 
+  // ===================== INDEXEDDB HELPERS =====================
+  function openIDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('QuranMemorizer', 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('cache')) {
+          db.createObjectStore('cache');
+        }
+      };
+      request.onsuccess = (e) => resolve(e.target.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  async function getFromIDB(key) {
+    try {
+      const db = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('cache', 'readonly');
+        const store = tx.objectStore('cache');
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function setToIDB(key, value) {
+    try {
+      const db = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('cache', 'readwrite');
+        const store = tx.objectStore('cache');
+        const req = store.put(value, key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn('IndexedDB write failed:', e);
+    }
+  }
+
+  async function removeFromIDB(key) {
+    try {
+      const db = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('cache', 'readwrite');
+        const store = tx.objectStore('cache');
+        const req = store.delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {}
+  }
+
   // ===================== GLOBAL INDEX (CACHED, INSTANT) =====================
   const GLOBAL_INDEX_CACHE_KEY = 'quran-global-index-v2';
   const GLOBAL_INDEX_MAP_KEY = 'quran-global-wordmap-v2';
 
   async function buildGlobalIndex() {
     try {
-      // Check localStorage cache FIRST for instant detection
-      const cachedWords = localStorage.getItem(GLOBAL_INDEX_CACHE_KEY);
-      const cachedMap = localStorage.getItem(GLOBAL_INDEX_MAP_KEY);
+            // Check IndexedDB cache FIRST for instant detection
+      const [cachedWords, cachedMap] = await Promise.all([
+        getFromIDB(GLOBAL_INDEX_CACHE_KEY),
+        getFromIDB(GLOBAL_INDEX_MAP_KEY)
+      ]);
       
       if (cachedWords && cachedMap) {
         try {
-          state.globalWords = JSON.parse(cachedWords);
-          state.globalWordMap = new Map(JSON.parse(cachedMap));
+          state.globalWords = cachedWords;
+          state.globalWordMap = new Map(cachedMap);
           state.globalIndexBuilt = true;
           console.log(`Loaded global index from cache: ${state.globalWords.length} words, ${state.globalWordMap.size} unique entries`);
           showToast('Voice engine ready ✦', true);
+          // Clean up old localStorage cache if it still exists
+          localStorage.removeItem(GLOBAL_INDEX_CACHE_KEY);
+          localStorage.removeItem(GLOBAL_INDEX_MAP_KEY);
           return;
         } catch (cacheErr) {
           console.warn('Cache corrupted, rebuilding...', cacheErr);
-          localStorage.removeItem(GLOBAL_INDEX_CACHE_KEY);
-          localStorage.removeItem(GLOBAL_INDEX_MAP_KEY);
+          await removeFromIDB(GLOBAL_INDEX_CACHE_KEY);
+          await removeFromIDB(GLOBAL_INDEX_MAP_KEY);
         }
       }
 
@@ -2145,78 +4707,130 @@
 
       showToast('Building voice navigation index...');
 
-      // Fetch the full Quran data
-      const res = await fetch(`${API_BASE}/quran/quran-uthmani`);
-      const json = await res.json();
-      
-      if (!json.data || !json.data.surahs) throw new Error('Invalid API response');
-
-      showToast('Optimizing voice engine...');
-      
       const words = [];
       const wordMap = new Map();
-      let totalAyahs = 0;
-      json.data.surahs.forEach(surah => { totalAyahs += surah.ayahs.length; });
-      let processedAyahs = 0;
 
-      // Process all surahs in one batch for speed (processing is fast, fetch is the bottleneck)
-      for (const surah of json.data.surahs) {
-        for (const ayah of surah.ayahs) {
-          const tokens = ayah.text.match(/(\S+|\s+)/g) || [];
-          let wordIdx = 0;
-          tokens.forEach(t => {
-            if (/\S/.test(t)) {
-              const norm = normalizeArabic(t);
-              if (norm.length > 0) {
-                words.push({ text: norm, page: ayah.page });
-                // Build hash map for O(1) word → page/ayah lookups
-                if (!wordMap.has(norm)) {
-                  wordMap.set(norm, []);
+      // If local database is available, use it to avoid network request
+      if (state.quranPagesDb) {
+        let pageNum = 1;
+        
+        function processLocalPagesChunk() {
+          const endPage = Math.min(604, pageNum + 15);
+          for (let p = pageNum; p <= endPage; p++) {
+            const ayahs = state.quranPagesDb[p] || [];
+            ayahs.forEach(ayah => {
+              const tokens = ayah.text.match(/(\S+|\s+)/g) || [];
+              let wordIdx = 0;
+              tokens.forEach(t => {
+                if (/\S/.test(t)) {
+                  const norm = normalizeArabic(t);
+                  if (norm.length > 0) {
+                    words.push({ text: norm, page: p });
+                    if (!wordMap.has(norm)) {
+                      wordMap.set(norm, []);
+                    }
+                    wordMap.get(norm).push({ page: p, ayahNum: ayah.number, wordIdx });
+                    wordIdx++;
+                  }
                 }
-                wordMap.get(norm).push({ page: ayah.page, ayahNum: ayah.number, wordIdx });
-                wordIdx++;
-              }
-            }
-          });
-          processedAyahs++;
-          // Update real progress based on actual processing
-          const pct = Math.floor((processedAyahs / totalAyahs) * 100);
-          if (els.globalIndexProgressBar && pct % 5 === 0) {
+              });
+            });
+          }
+          
+          const pct = Math.floor((endPage / 604) * 100);
+          if (els.globalIndexProgressBar) {
             els.globalIndexProgressBar.style.width = `${pct}%`;
             els.globalIndexProgressText.textContent = `${pct}%`;
           }
+          
+          if (endPage < 604) {
+            pageNum = endPage + 1;
+            setTimeout(processLocalPagesChunk, 0); // Yield to main thread
+          } else {
+            finalizeIndex();
+          }
+        }
+        
+        processLocalPagesChunk();
+        return;
+      }
+
+      // Fallback: Fetch the full Quran data from API (chunked processing)
+      const res = await fetch(`${API_BASE}/quran/quran- saheeh`);
+      const json = await res.json();
+      if (!json.data || !json.data.surahs) throw new Error('Invalid API response');
+
+      showToast('Optimizing voice engine...');
+      const surahs = json.data.surahs;
+      let surahIdx = 0;
+
+      function processApiSurahsChunk() {
+        const endSurah = Math.min(surahs.length - 1, surahIdx + 3); // 4 surahs per chunk
+        for (let s = surahIdx; s <= endSurah; s++) {
+          const surah = surahs[s];
+          surah.ayahs.forEach(ayah => {
+            const tokens = ayah.text.match(/(\S+|\s+)/g) || [];
+            let wordIdx = 0;
+            tokens.forEach(t => {
+              if (/\S/.test(t)) {
+                const norm = normalizeArabic(t);
+                if (norm.length > 0) {
+                  words.push({ text: norm, page: ayah.page });
+                  if (!wordMap.has(norm)) {
+                    wordMap.set(norm, []);
+                  }
+                  wordMap.get(norm).push({ page: ayah.page, ayahNum: ayah.number, wordIdx });
+                  wordIdx++;
+                }
+              }
+            });
+          });
+        }
+        
+        const pct = Math.floor(((endSurah + 1) / surahs.length) * 100);
+        if (els.globalIndexProgressBar) {
+          els.globalIndexProgressBar.style.width = `${pct}%`;
+          els.globalIndexProgressText.textContent = `${pct}%`;
+        }
+        
+        if (endSurah < surahs.length - 1) {
+          surahIdx = endSurah + 1;
+          setTimeout(processApiSurahsChunk, 0); // Yield to main thread
+        } else {
+          finalizeIndex();
         }
       }
 
-      state.globalWords = words;
-      state.globalWordMap = wordMap;
-      state.globalIndexBuilt = true;
+      processApiSurahsChunk();
 
-      // Cache in localStorage for instant loading on next visit
-      try {
-        localStorage.setItem(GLOBAL_INDEX_CACHE_KEY, JSON.stringify(words));
-        localStorage.setItem(GLOBAL_INDEX_MAP_KEY, JSON.stringify([...wordMap]));
-        console.log('Cached global index to localStorage');
-      } catch (storageErr) {
-        console.warn('Could not cache index (storage full?):', storageErr);
+      function finalizeIndex() {
+        state.globalWords = words;
+        state.globalWordMap = wordMap;
+        state.globalIndexBuilt = true;
+
+        // Cache in IndexedDB (handles large data without QuotaExceededError)
+        setToIDB(GLOBAL_INDEX_CACHE_KEY, words);
+        setToIDB(GLOBAL_INDEX_MAP_KEY, [...wordMap]);
+        console.log('Cached global index to IndexedDB');
+        // Clean up old localStorage cache
+        localStorage.removeItem(GLOBAL_INDEX_CACHE_KEY);
+        localStorage.removeItem(GLOBAL_INDEX_MAP_KEY);
+
+        if (els.globalIndexProgressBar) {
+          els.globalIndexProgressBar.style.width = '100%';
+          els.globalIndexProgressText.textContent = 'Ready!';
+        }
+        showToast('Voice navigation ready ✦', true);
+        if (els.globalIndexProgressContainer) {
+          setTimeout(() => els.globalIndexProgressContainer.classList.add('hidden'), 2000);
+        }
       }
 
-      // Complete progress
-      if (els.globalIndexProgressBar) {
-        els.globalIndexProgressBar.style.width = '100%';
-        els.globalIndexProgressText.textContent = 'Ready!';
-      }
-      showToast('Voice navigation ready ✦', true);
-      
-      if (els.globalIndexProgressContainer) {
-        setTimeout(() => els.globalIndexProgressContainer.classList.add('hidden'), 2000);
-      }
     } catch (err) {
       console.warn('Could not build global index:', err);
       if (els.systemToast) els.systemToast.classList.add('hidden');
       if (els.globalIndexProgressContainer) els.globalIndexProgressContainer.classList.add('hidden');
-      // Even without global index, local page matching still works
-      state.globalIndexBuilt = true; // Mark as attempted so we don't retry
+      state.globalIndexBuilt = true;
     }
   }
 
@@ -2373,13 +4987,7 @@
           revealAllAyahs();
         }
         break;
-      case 'm':
-      case 'M':
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          toggleMemoryMode();
-        }
-        break;
+
       case 's':
       case 'S':
         if (!e.ctrlKey && !e.metaKey) {
@@ -2399,24 +5007,297 @@
   // ===================== INIT =====================
   function init() {
     loadProgress();
+    applyTheme();
     els.totalPages.textContent = TOTAL_PAGES;
     updateGlobalStats();
 
     // Event listeners
+    if (els.tabAyahs && els.tabTeacher && els.tabAbout) {
+      const tabs = [
+        { tab: els.tabTeacher, section: els.teacherSection, onActivate: () => {} },
+        { tab: els.tabAyahs, section: els.ayahsSection, onActivate: () => { stopTeacherLoop(); stopTeacherPractice(); } },
+        { tab: els.tabAbout, section: els.aboutSection, onActivate: () => { stopTeacherLoop(); stopTeacherPractice(); } }
+      ];
+
+      tabs.forEach(item => {
+        item.tab.addEventListener('click', () => {
+          tabs.forEach(t => {
+            t.tab.classList.remove('active');
+            t.section.classList.remove('active');
+          });
+          item.tab.classList.add('active');
+          item.section.classList.add('active');
+          item.onActivate();
+        });
+      });
+    }
+
+    if (els.globalPageLoopBtn) {
+      els.globalPageLoopBtn.addEventListener('click', () => {
+        if (state.teacherState.isPlaying && state.teacherState.isGlobalPageLoop) {
+          stopTeacherLoop();
+        } else {
+          startGlobalPageLoop();
+        }
+      });
+    }
+
+    if (els.globalTimedStart) {
+      els.globalTimedStart.addEventListener('change', () => {
+        updateGlobalTimedEndDropdown(parseInt(els.globalTimedStart.value));
+        if (state.isSelectionHidden) {
+          updateMushafMasks();
+        }
+      });
+    }
+
+    if (els.globalTimedEnd) {
+      els.globalTimedEnd.addEventListener('change', () => {
+        if (state.isSelectionHidden) {
+          updateMushafMasks();
+        }
+      });
+    }
+
+    if (els.globalTimedBtn) {
+      els.globalTimedBtn.addEventListener('click', () => {
+        if (state.teacherState.timedMode.active && state.teacherState.timedMode.groupId === 'global-timed') {
+          stopTimedMode();
+        } else {
+          const startVal = parseInt(els.globalTimedStart.value);
+          const endVal = parseInt(els.globalTimedEnd.value);
+          
+          if (isNaN(startVal) || isNaN(endVal) || startVal > endVal) {
+            showToast("Invalid range selected", false);
+            return;
+          }
+          
+          const selectedAyahs = state.ayahs.slice(startVal, endVal + 1);
+          if (selectedAyahs.length === 0) return;
+          
+          const globalGroup = {
+            id: 'global-timed',
+            theme: 'Global Page Selection',
+            ayahs: selectedAyahs
+          };
+          startTimedMode(globalGroup);
+        }
+      });
+    }
+
+    // Pinned Audio Player controls
+    if (els.playerPlayBtn) {
+      els.playerPlayBtn.addEventListener('click', () => {
+        const activePlayer = getActiveAudioPlayer();
+        if (activePlayer) {
+          if (activePlayer.paused) {
+            activePlayer.play().catch(err => console.warn("Failed to resume playback", err));
+          } else {
+            activePlayer.pause();
+          }
+        }
+      });
+    }
+
+    if (els.playerCloseBtn) {
+      els.playerCloseBtn.addEventListener('click', () => {
+        stopAllRecitation();
+      });
+    }
+
+    if (els.playerProgressBarTrack) {
+      els.playerProgressBarTrack.addEventListener('click', (e) => {
+        const activePlayer = getActiveAudioPlayer();
+        if (activePlayer && activePlayer.duration) {
+          const rect = els.playerProgressBarTrack.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const width = rect.width;
+          const pct = Math.max(0, Math.min(1, clickX / width));
+          activePlayer.currentTime = pct * activePlayer.duration;
+        }
+      });
+    }
+
     els.prevPageBtn.addEventListener('click', prevPage);
     els.nextPageBtn.addEventListener('click', nextPage);
     els.firstPageBtn.addEventListener('click', firstPage);
     els.lastPageBtn.addEventListener('click', lastPage);
     els.goToPageBtn.addEventListener('click', () => goToPage(els.pageInput.value));
     els.showAllBtn.addEventListener('click', revealAllAyahs);
-    els.memoryModeBtn.addEventListener('click', toggleMemoryMode);
+    if (els.memoryModeBtn) {
+      els.memoryModeBtn.addEventListener('click', toggleMemoryMode);
+    }
     els.resetPageBtn.addEventListener('click', resetPage);
     els.toggleTextBtn.addEventListener('click', toggleTextMode);
+    if (els.toggleHintsBtn) {
+      els.toggleHintsBtn.addEventListener('click', () => {
+        state.teacherState.showStartHints = !state.teacherState.showStartHints;
+        if (els.toggleHintsText) {
+          els.toggleHintsText.textContent = state.teacherState.showStartHints ? 'Hints: ON' : 'Hints: OFF';
+        }
+        els.toggleHintsBtn.classList.toggle('active', state.teacherState.showStartHints);
+        
+        // If hints are turned OFF, re-hide/mask all words on the page to hide all text!
+        if (!state.teacherState.showStartHints) {
+          state.teacherState.recitedWordIdxs.clear();
+          if (state.teacherState.activeGroup) {
+            state.teacherState.activeGroup.ayahs.forEach(ayah => {
+              els.pageTextOverlay.querySelectorAll(`.word[data-ayah="${ayah.number}"]`).forEach(el => {
+                if (state.teacherState.timedMode.active) {
+                  el.classList.remove('timed-test-success');
+                  el.classList.add('timed-test-hidden');
+                } else {
+                  el.classList.remove('practice-success');
+                  el.classList.add('practice-hidden');
+                }
+              });
+            });
+          }
+          updateTeacherUI();
+        }
+        
+        updateMushafMasks();
+      });
+    }
+    if (els.themeToggleBtn) {
+      els.themeToggleBtn.addEventListener('click', toggleThemeMode);
+    }
+    
+    // --- Handwriting Trace & Write Mode Bindings ---
+    if (els.toggleTraceModeBtn) {
+      els.toggleTraceModeBtn.addEventListener('click', toggleTraceMode);
+    }
+    
+    if (els.tracePenBtn) {
+      els.tracePenBtn.addEventListener('click', () => {
+        state.traceIsEraser = false;
+        
+        // Update active classes
+        els.tracePenBtn.classList.add('active');
+        if (els.traceEraserBtn) els.traceEraserBtn.classList.remove('active');
+        
+        // Update canvas cursor class
+        if (els.traceCanvas) els.traceCanvas.classList.remove('eraser-active');
+        
+        // Reactivate active color dot highlight
+        document.querySelectorAll('.color-dot').forEach(dot => {
+          dot.classList.toggle('active', dot.getAttribute('data-color') === state.traceColor);
+        });
+      });
+    }
+
+    if (els.traceEraserBtn) {
+      els.traceEraserBtn.addEventListener('click', () => {
+        state.traceIsEraser = true;
+        
+        // Update active classes
+        els.traceEraserBtn.classList.add('active');
+        if (els.tracePenBtn) els.tracePenBtn.classList.remove('active');
+        
+        // Update canvas cursor class
+        if (els.traceCanvas) els.traceCanvas.classList.add('eraser-active');
+        
+        // Deactivate color dots UI since eraser is active
+        document.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('active'));
+      });
+    }
+    
+    if (els.traceUndoBtn) {
+      els.traceUndoBtn.addEventListener('click', undoLastStroke);
+    }
+    
+    if (els.traceClearBtn) {
+      els.traceClearBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear all drawings on this page?')) {
+          clearPageDrawing();
+        }
+      });
+    }
+    
+    if (els.traceWidthSlider) {
+      els.traceWidthSlider.addEventListener('input', (e) => {
+        state.traceWidth = parseInt(e.target.value) || 3;
+        if (els.traceWidthDisplay) els.traceWidthDisplay.textContent = state.traceWidth + 'px';
+      });
+    }
+    
+    if (els.traceOpacitySlider) {
+      els.traceOpacitySlider.addEventListener('input', (e) => {
+        state.traceOpacity = parseInt(e.target.value) || 8;
+        if (els.traceOpacityDisplay) els.traceOpacityDisplay.textContent = state.traceOpacity + '%';
+        if (els.pageImageContainer) {
+          els.pageImageContainer.style.setProperty('--trace-opacity', (state.traceOpacity / 100));
+        }
+      });
+    }
+    
+    // Color dots selection
+    document.querySelectorAll('.color-dot').forEach(dot => {
+      dot.addEventListener('click', (e) => {
+        state.traceColor = e.target.getAttribute('data-color');
+        state.traceIsEraser = false;
+        
+        // Update UI
+        if (els.traceEraserBtn) els.traceEraserBtn.classList.remove('active');
+        if (els.tracePenBtn) els.tracePenBtn.classList.add('active');
+        if (els.traceCanvas) els.traceCanvas.classList.remove('eraser-active');
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        e.target.classList.add('active');
+      });
+    });
+    if (els.hidePageBtn) {
+      els.hidePageBtn.addEventListener('click', toggleHidePageMode);
+    }
+    if (els.hideTextBtn) {
+      els.hideTextBtn.addEventListener('click', toggleHideTextMode);
+    }
+    if (els.hideSelectionBtn) {
+      els.hideSelectionBtn.addEventListener('click', toggleHideSelectionMode);
+    }
+    const closeBtn = document.querySelector('#wordTranslationPanel .translation-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        state.isTranslationPinned = false;
+      });
+    }
     els.listenModeBtn.addEventListener('click', toggleListenMode);
+    if (els.closeMicModalBtn) {
+      els.closeMicModalBtn.addEventListener('click', hideMicPermissionModal);
+    }
+    if (els.listenLangSelect) {
+      els.listenLangSelect.addEventListener('change', (e) => {
+        state.listenLang = e.target.value;
+        if (state.isListenMode && !state.isListenPaused) {
+          stopListening();
+          startListening();
+        }
+      });
+    }
+    if (els.reciterSelect) {
+      els.reciterSelect.addEventListener('change', (e) => {
+        state.reciter = e.target.value;
+        stopAllRecitation();
+      });
+    }
     if (els.pauseListenBtn) els.pauseListenBtn.addEventListener('click', togglePauseListen);
     els.surahBtn.addEventListener('click', openSurahPanel);
     els.surahPanelOverlay.addEventListener('click', closeSurahPanel);
     els.surahPanelClose.addEventListener('click', closeSurahPanel);
+    if (els.topStatusBanner) {
+      els.topStatusBanner.addEventListener('click', (e) => {
+        const btn = e.target.closest('.status-action-btn');
+        if (!btn) return;
+        
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (btn.classList.contains('stop')) {
+          window.__stopTimedMode();
+        } else {
+          window.__skipToTest();
+        }
+      });
+    }
     els.surahSearch.addEventListener('input', (e) => {
       surahFilter = e.target.value;
       renderSurahList();
@@ -2446,17 +5327,21 @@
     // Keyboard
     document.addEventListener('keydown', handleKeyboard);
 
+    // Update block masks dynamically on window resize
+    window.addEventListener('resize', updateMushafMasks);
+
     // Load English translations from CSV
     fetchEnglishTranslations();
 
-    // Attempt to load custom Uthmani text from the local folder
-    loadCustomQuranData();
+    // Load local databases, then load initial page (instant load)
+    loadLocalDatabases().finally(() => {
+      loadPage(state.currentPage || 1);
+    });
 
-    // 🚀 START BUILDING GLOBAL INDEX IMMEDIATELY (no wait for first page)
-    // This downloads the full Quran word index in background so voice detection
-    // works instantly as soon as the user activates Listen Mode.
-    // The result is cached in localStorage for subsequent visits.
-    buildGlobalIndex();
+    // Defer building the global index by 3 seconds to ensure instant startup responsiveness
+    setTimeout(() => {
+      buildGlobalIndex();
+    }, 3000);
 
     // Handle window resizes
     let resizeTimer;
@@ -2464,6 +5349,7 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (state.isMemoryMode) renderMemoryCircles();
+        if (state.isTraceMode) resizeTraceCanvas();
       }, 200);
     });
 
@@ -2481,8 +5367,88 @@
       if (state.isTextMode && !state.isMemoryMode) els.memoryCircles.scrollTop = els.pageTextOverlay.scrollTop;
     });
 
-    // Load initial page
-    loadPage(1);
+    els.pageTextOverlay.addEventListener('click', (e) => {
+      const wordEl = e.target.closest('.word');
+      if (!wordEl) return;
+      
+      e.stopPropagation();
+      
+      if (state.teacherState.timedMode.active && state.teacherState.timedMode.phase === 'test') {
+        const wordIdx = parseInt(wordEl.dataset.wordIdx);
+        if (!isNaN(wordIdx)) {
+          if (state.teacherState.recitedWordIdxs.has(wordIdx)) {
+            state.teacherState.recitedWordIdxs.delete(wordIdx);
+            wordEl.classList.remove('timed-test-success');
+            wordEl.classList.add('timed-test-hidden');
+          } else {
+            state.teacherState.recitedWordIdxs.add(wordIdx);
+            wordEl.classList.remove('timed-test-hidden');
+            wordEl.classList.add('timed-test-success');
+            wordEl.classList.add('just-matched');
+            setTimeout(() => wordEl.classList.remove('just-matched'), 400);
+          }
+          
+          updateTeacherUI();
+          updateMushafMasks(); // Update the unified visual mask
+          
+          // Update indicator feedback
+          const totalWords = getTimedModeWordCount();
+          const recitedWords = state.teacherState.recitedWordIdxs.size;
+          updateListenIndicator(wordEl.textContent.trim(), Math.min(1.0, recitedWords / totalWords));
+          
+          // Check if finished memorizing the group!
+          if (recitedWords >= totalWords) {
+            showToast("🏆 Maa Shaa Allah! You have successfully memorized this group!", true);
+            stopTimedMode();
+          }
+        }
+      } else {
+        const isPracticeActive = state.isTextHidden || state.teacherState.isPracticeMode || state.isSelectionHidden || state.isPageHidden;
+        if (isPracticeActive && wordEl.classList.contains('word-start')) {
+          e.preventDefault();
+          const ayahNum = parseInt(wordEl.dataset.ayah);
+          if (!isNaN(ayahNum)) {
+            revealAyahInPractice(ayahNum);
+            revealAyah(ayahNum);
+          }
+        }
+      }
+    });
+
+    // Hover on aya stopped per user request
+    /*
+    let translationHoverTimeout = null;
+
+    els.pageTextOverlay.addEventListener('mouseover', (e) => {
+      const wordEl = e.target.closest('.word');
+      if (!wordEl) return;
+      
+      if (state.teacherState.timedMode.active && state.teacherState.timedMode.phase === 'test') {
+        return;
+      }
+      
+      if (translationHoverTimeout) {
+        clearTimeout(translationHoverTimeout);
+        translationHoverTimeout = null;
+      }
+      
+      showWordTranslation(wordEl);
+    });
+
+    els.pageTextOverlay.addEventListener('mouseout', (e) => {
+      const wordEl = e.target.closest('.word');
+      if (!wordEl) return;
+      
+      if (!state.isTranslationPinned) {
+        if (translationHoverTimeout) clearTimeout(translationHoverTimeout);
+        translationHoverTimeout = setTimeout(() => {
+          if (els.wordTranslationPanel) {
+            els.wordTranslationPanel.classList.add('hidden');
+          }
+        }, 150); // 150ms buffer for smoother mouse transitions
+      }
+    });
+    */
 
     // Preload adjacent pages intelligently
     const imagesToPreload = [2, 3, 604];
@@ -2496,6 +5462,7 @@
   window.__setSurahSort = function(mode) {
     setSurahSort(mode);
   };
+  window.loadPage = loadPage;
 
   // Start when DOM is ready
   if (document.readyState === 'loading') {

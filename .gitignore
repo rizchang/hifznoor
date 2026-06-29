@@ -1,0 +1,11 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Windows system-reserved name file created accidentally
+nul
+
+# Local environment settings/cache
+.DS_Store
+Thumbs.db

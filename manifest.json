@@ -1,6 +1,6 @@
 {
-  "name": "Quran Memorizer",
-  "short_name": "Memorizer",
+  "name": "HifzNoor — Quran Memorizer",
+  "short_name": "HifzNoor",
   "description": "An interactive Quran memorization tool.",
   "start_url": "./index.html",
   "display": "standalone",

@@ -1,0 +1,14 @@
+User-agent: *
+# Prevent indexing of system files and credentials
+Disallow: /.git/
+Disallow: /.env*
+Disallow: /config/
+Disallow: /generate_all_local_databases.py
+Disallow: /*.doc$
+Disallow: /*.ttf$
+Disallow: /*.json$
+
+# Allow indexing of all public website pages
+Allow: /
+
+Sitemap: https://hifznoor.com/sitemap.xml

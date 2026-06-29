@@ -3,14 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quran Memorizer — مصحف الحفظ</title>
+  <title>HifzNoor — Interactive Quran Memorization & Hifz Tool | مصحف الحفظ</title>
+  <meta name="description" content="HifzNoor (مصحف الحفظ) is a premium, interactive Quran memorization tool live on hifznoor.com. Features page-by-page tracking, thematic teacher loop audio, Nazira reading, Close Book mode, and advanced speech recognition helper for online Quran Hifz.">
+  <meta name="keywords" content="HifzNoor, hifznoor.com, Quran Memorizer, Quran Memorization, Hifz Quran, Online Hifz Tool, مصحف الحفظ, Close Book Mode, Quran Speech Recognition, Interactive Hifz Loops, Nazira Quran">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://hifznoor.com/">
+  
+  <!-- Icons and Favicons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hifznoor.com/">
+  <meta property="og:title" content="HifzNoor — Interactive Quran Memorization & Hifz Tool | مصحف الحفظ">
+  <meta property="og:description" content="Memorize Quran Al Majeed online with interactive thematic loops, page tracking, Nazira Reading Mode, and voice speech recognition matching.">
+  <meta property="og:image" content="https://hifznoor.com/icon-512.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://hifznoor.com/">
+  <meta property="twitter:title" content="HifzNoor — Interactive Quran Memorization & Hifz Tool | مصحف الحفظ">
+  <meta property="twitter:description" content="Memorize Quran Al Majeed online with interactive thematic loops, page tracking, Nazira Reading Mode, and voice speech recognition matching.">
+  <meta property="twitter:image" content="https://hifznoor.com/icon-512.png">
+
+  <!-- Google Structured WebApplication Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "HifzNoor",
+    "alternateName": ["مصحف الحفظ", "Quran Memorizer"],
+    "url": "https://hifznoor.com/",
+    "logo": "https://hifznoor.com/icon-512.png",
+    "image": "https://hifznoor.com/icon-512.png",
+    "description": "An interactive web application built to help memorize the Quran Al Majeed. Features standard page-by-page learning, thematic teacher loops, Nazira mode, Close Book mode, and speech recognition helpers.",
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a1628">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
-<body>
+<body class="light-mode">
 
   <!-- 🌙 Background Pattern Overlay -->
   <div class="bg-pattern"></div>
@@ -24,13 +69,13 @@
       <div class="header-content">
         <div class="logo-area">
           <div class="logo-icon">﷽</div>
-          <h1 class="app-title">Quran Memorizer</h1>
-          <p class="app-subtitle">مصحف الحفظ</p>
+          <h1 class="app-title">HifzNoor</h1>
+          <p class="app-subtitle">Quran Memorizer — مصحف الحفظ</p>
         </div>
         <div class="progress-summary">
           <div class="progress-stat">
-            <span class="stat-number" id="pagesViewed">0</span>
-            <span class="stat-label">Pages Visited</span>
+            <span class="stat-number" id="pagesViewed">1</span>
+            <span class="stat-label">Current Page</span>
           </div>
           <div class="progress-stat">
             <span class="stat-number" id="totalPages">604</span>
@@ -58,15 +103,99 @@
             </div>
           </div>
 
+          <!-- Active Recitation/Listening Info Banner -->
+          <div id="topStatusBanner" class="top-status-banner hidden">
+            <span id="topStatusIcon" class="top-status-icon">🔊</span>
+            <span id="topStatusText" class="top-status-text"></span>
+          </div>
+ 
+          <!-- Thematic Visualizer Card -->
+          <div id="themeVisualizerCard" class="theme-visualizer-card hidden">
+            <div class="theme-visualizer-art" id="themeVisualizerArt"></div>
+            <div class="theme-visualizer-info">
+              <h3 id="themeVisualizerTitle" class="theme-visualizer-title">Theme</h3>
+              <p id="themeVisualizerDesc" class="theme-visualizer-desc">Active thematic verses</p>
+            </div>
+          </div>
+ 
+          <!-- ✍️ Trace & Memorize Control Toolbar -->
+          <div id="traceToolbar" class="trace-toolbar">
+            <button id="toggleTraceModeBtn" class="trace-toggle-btn">
+              <span class="trace-btn-icon">✍️</span>
+              <span class="trace-btn-text">Trace & Write Mode</span>
+              <span class="trace-btn-badge">NEW</span>
+            </button>
+            
+            <div id="traceControls" class="trace-controls-panel hidden">
+              <!-- Colors -->
+              <div class="trace-control-group color-group">
+                <span class="control-label">Colors:</span>
+                <div class="color-options">
+                  <button class="color-dot active" data-color="#3b82f6" style="background-color: #3b82f6;" title="Sapphire Blue"></button>
+                  <button class="color-dot" data-color="#10b981" style="background-color: #10b981;" title="Emerald Green"></button>
+                  <button class="color-dot" data-color="#ef4444" style="background-color: #ef4444;" title="Crimson Red"></button>
+                  <button class="color-dot" data-color="#8b5cf6" style="background-color: #8b5cf6;" title="Royal Purple"></button>
+                  <button class="color-dot" data-color="#d4af37" style="background-color: #d4af37;" title="Gold"></button>
+                  <button class="color-dot" data-color="#000000" style="background-color: #000000;" title="Black"></button>
+                  <button class="color-dot" data-color="#ffffff" style="background-color: #ffffff; border: 1px solid #ccc;" title="White"></button>
+                </div>
+              </div>
+              
+              <!-- Tools -->
+              <div class="trace-control-group tools-group">
+                <button id="tracePenBtn" class="trace-tool-btn active" title="Use Pen">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: middle; display: inline-block;">
+                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>Pen
+                </button>
+                <button id="traceEraserBtn" class="trace-tool-btn" title="Use Eraser">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: middle; display: inline-block;">
+                    <path d="M20 20H7L3 16c-1-1-1-3 0-4L13 2l9 9-2 2v7Z" fill="currentColor"/>
+                    <path d="M17 14L9 6"/>
+                  </svg>Eraser
+                </button>
+                <button id="traceUndoBtn" class="trace-tool-btn" title="Undo Last Stroke">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: middle; display: inline-block;">
+                    <path d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                  </svg>Undo
+                </button>
+                <button id="traceClearBtn" class="trace-tool-btn alert" title="Clear All Drawings on This Page">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: middle; display: inline-block;">
+                    <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                  </svg>Clear
+                </button>
+              </div>
+
+              <!-- Stroke Width -->
+              <div class="trace-control-group size-group">
+                <span class="control-label">Width:</span>
+                <input type="range" id="traceWidthSlider" min="1" max="10" value="3" class="trace-slider" title="Brush stroke width">
+                <span id="traceWidthDisplay" class="slider-val">3px</span>
+              </div>
+
+              <!-- Page Image Opacity (Shading strength) -->
+              <div class="trace-control-group opacity-group">
+                <span class="control-label">Shading:</span>
+                <input type="range" id="traceOpacitySlider" min="5" max="95" value="8" class="trace-slider" title="Adjust background image shading">
+                <span id="traceOpacityDisplay" class="slider-val">8%</span>
+              </div>
+            </div>
+          </div>
+
           <div class="page-border">
             <div class="page-corner tl"></div>
             <div class="page-corner tr"></div>
-            <div class="page-corner bl"></div>
-            <div class="page-corner br"></div>
-            <div class="page-image-container" id="pageImageContainer">
+                 <div class="page-image-container" id="pageImageContainer">
               <img id="pageImage" class="page-image" alt="Quran Page" src="" loading="eager">
+              <canvas id="traceCanvas" class="trace-canvas"></canvas>
+              <!-- Full Page Mask for instant hiding -->
+              <div id="fullPageMask" class="full-page-mask"></div>
+              <!-- Mushaf Block Masks Container -->
+              <div id="mushafMasksContainer" class="mushaf-masks-container"></div>
               <!-- Beautiful Text Overlay -->
               <div id="pageTextOverlay" class="page-text-overlay"></div>
+              <!-- Ayah Start Hints Container -->
+              <div id="ayahStartHintsContainer" class="ayah-start-hints-container"></div>
               <!-- Memory test overlay (shown when memory mode is active) -->
               <div id="memoryOverlay" class="memory-overlay">
                 <div class="memory-overlay-bg"></div>
@@ -80,6 +209,15 @@
                     <button id="resetLayoutBtn" class="peek-btn" title="Snap back to exact text positions">Reset Positions</button>
                     <button id="resetAllLayoutBtn" class="peek-btn" title="Snap back all pages to exact text positions">Reset All</button>
                   </div>
+                </div>
+              </div>
+              <!-- Word translation popup -->
+              <div id="wordTranslationPanel" class="word-translation-panel hidden">
+                <button class="translation-close-btn" onclick="document.getElementById('wordTranslationPanel').classList.add('hidden')">&times;</button>
+                <div class="translation-panel-content">
+                  <div class="word-arabic-title" id="transArabicWord"></div>
+                  <div class="word-context-info" id="transContextInfo"></div>
+                  <div class="word-english-meaning" id="transEnglishText"></div>
                 </div>
               </div>
               <!-- Loading overlay -->
@@ -97,28 +235,218 @@
         </div>
       </section>
 
-      <!-- 🔢 Ayah Controls Sidebar -->
-      <aside class="ayah-sidebar">
-        <div class="sidebar-header">
-          <h2 class="sidebar-title">Ayahs on This Page</h2>
-          <p class="sidebar-subtitle" id="sidebarSubtitle">Tap the ayah number to reveal its text</p>
-          
+      <!-- 🎛️ Right Sidebar Wrapper -->
+      <div class="sidebar-wrapper">
+        <!-- 🔢 Ayah Controls Sidebar -->
+        <aside class="ayah-sidebar">
+        <div class="sidebar-tabs">
+          <button id="tabTeacher" class="sidebar-tab active">🏵️ Thematic Teacher</button>
+          <button id="tabAyahs" class="sidebar-tab">📖 Page Ayahs</button>
+          <button id="tabAbout" class="sidebar-tab">ℹ️ About</button>
+        </div>
 
-          <div class="sidebar-progress">
-            <div class="progress-bar-track">
-              <div id="pageProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+        <!-- 🔊 Pinned Audio Player Widget -->
+        <div id="sidebarAudioPlayer" class="sidebar-audio-player hidden">
+          <div class="player-header">
+            <span class="player-status-badge">RECITATION</span>
+            <button id="playerCloseBtn" class="player-close-btn" title="Close player">&times;</button>
+          </div>
+          <div class="player-body">
+            <div class="player-info">
+              <div id="playerAyahLabel" class="player-ayah-label">Surah Al-Fatiha, Ayah 1</div>
+              <div id="playerReciter" class="player-reciter">Sheikh Mishary Al-Afasy</div>
             </div>
-            <span id="pageProgressText" class="progress-text">0 / 0</span>
+            <div class="player-controls-row">
+              <button id="playerPlayBtn" class="player-control-btn circle" title="Play/Pause">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <div class="player-timeline">
+                <div id="playerProgressBarTrack" class="player-bar-track">
+                  <div id="playerProgressBarFill" class="player-bar-fill" style="width: 0%"></div>
+                </div>
+                <div class="player-time">
+                  <span id="playerTimeCurrent">0:00</span>
+                  <span id="playerTimeTotal">0:00</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div id="ayahList" class="ayah-list">
-          <!-- Ayah cards will be dynamically populated -->
-          <div class="ayah-list-empty">
-            <div class="empty-icon">📖</div>
-            <p>Loading ayahs...</p>
+
+        <!-- Section 1: Standard Ayah List -->
+        <div id="ayahsSection" class="sidebar-section">
+          <div class="sidebar-header">
+            <h2 class="sidebar-title">Ayahs on This Page</h2>
+            <p class="sidebar-subtitle" id="sidebarSubtitle">Tap the ayah number to reveal its text</p>
+            <div class="sidebar-progress">
+              <div class="progress-bar-track">
+                <div id="pageProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+              </div>
+              <span id="pageProgressText" class="progress-text">0 / 0</span>
+            </div>
+          </div>
+          <div id="ayahList" class="ayah-list">
+            <!-- Ayah cards will be dynamically populated -->
+            <div class="ayah-list-empty">
+              <div class="empty-icon">📖</div>
+              <p>Loading ayahs...</p>
+            </div>
           </div>
         </div>
-      </aside>
+
+        <!-- Section 2: Thematic Memorizer Teacher -->
+        <div id="teacherSection" class="sidebar-section active">
+          <div class="sidebar-header">
+            <h2 class="sidebar-title">Thematic Memorizer</h2>
+            <p class="sidebar-subtitle">Audio reinforcement loops & guided recitation practice</p>
+            <div class="reciter-select-container">
+              <label for="reciterSelect">Reciter:</label>
+              <select id="reciterSelect" class="reciter-select" title="Choose Reciter" aria-label="Choose Reciter">
+                <option value="ar.husary" selected>Mahmoud Al-Husary (الحصري) - Default</option>
+                <option value="ar.alafasy">Mishary Alafasy (مشاري العفاسي)</option>
+                <option value="ar.minshawi">Siddiq El-Minshawi (المنشاوي)</option>
+                <option value="ar.abdulbasitmurattal">Abdul Basit (عبد الباسط)</option>
+                <option value="ar.ghamadi">Saad Al-Ghamdi (سعد الغامدي)</option>
+                <option value="ar.sudais">Abdur-Rahman As-Sudais (السديس)</option>
+                <option value="ar.mahermuaiqly">Maher Al-Muaiqly (ماهر المعيقلي)</option>
+                <option value="ar.hudhaify">Ali Al-Hudhaify (الحذيفي)</option>
+                <option value="ar.ajamy">Ahmad Al-Ajamy (أحمد العجمي)</option>
+                <option value="ar.shatri">Abu Bakr Al-Shatri (أبو بكر الشاطري)</option>
+                <option value="ur.khan">Shamshad Khan (Urdu Translation - اردو)</option>
+                <option value="en.walk">Ibrahim Walk (English Translation)</option>
+              </select>
+            </div>
+            <div class="teacher-global-actions">
+              <!-- Global Page Loop Button -->
+              <button id="globalPageLoopBtn" class="global-page-loop-btn" title="Loop all groups on this page in sequence">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                <span>Play Teacher Loop</span>
+              </button>
+              
+              <!-- Global Timed Mode Controller -->
+              <div class="global-timed-controller">
+                <div class="global-timed-range">
+                  <span class="range-label">Global Range:</span>
+                  <div class="range-dropdowns">
+                    <select id="globalTimedStart" class="range-select" title="Global timed range start"></select>
+                    <span class="range-to">to</span>
+                    <select id="globalTimedEnd" class="range-select" title="Global timed range end"></select>
+                  </div>
+                </div>
+                <button id="globalTimedBtn" class="teacher-btn btn-timed" title="Start Global Timed Memorizer for current page selection">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="margin-right:6px;"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                  <span>40/20 minutes timed</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="teacherGroupList" class="teacher-group-list">
+            <!-- Groups will be dynamically populated -->
+            <div class="ayah-list-empty">
+              <div class="empty-icon">🏵️</div>
+              <p>Loading thematic groups...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: About App -->
+        <div id="aboutSection" class="sidebar-section">
+          <div class="sidebar-header">
+            <h2 class="sidebar-title">About Quran Memorizer</h2>
+            <p class="sidebar-subtitle">Project details and references</p>
+          </div>
+          <div class="about-content-area">
+            <p class="about-main-text">"This web app is my personal endeavour to help memorize Quran Al Majeed, please remember me in your prayers"</p>
+            
+            <div class="about-references">
+              <h3>Credits & References</h3>
+              <ul>
+                <li><strong>Uthmani Hafs Text</strong>: Tanzil.net</li>
+                <li><strong>Mushaf Dar Al Maarifah</strong>: Tajweed Quran</li>
+                <li><strong>Audio Recitations</strong>: EveryAyah.com & Quran.com API</li>
+                <li><strong>Thematic Structuring</strong>: Quranic thematic groupings metadata</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        </aside>
+
+        <!-- 🎛️ Bottom Controls -->
+        <footer class="bottom-controls">
+          <div class="controls-inner">
+            <button id="firstPageBtn" class="control-btn" title="First Page" aria-label="First Page">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+            </button>
+            <button id="prevPageBtn" class="control-btn primary" title="Previous Page" aria-label="Previous Page">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+
+            <div class="page-jumper" role="group" aria-label="Jump to page">
+              <span class="jumper-btn">Page</span>
+              <input type="number" id="pageInput" class="page-input" min="1" max="604" value="1" placeholder="1" aria-label="Page number">
+              <button id="goToPageBtn" class="go-btn" aria-label="Go to page">Go</button>
+            </div>
+
+            <button id="nextPageBtn" class="control-btn primary" title="Next Page" aria-label="Next Page">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
+            <button id="lastPageBtn" class="control-btn" title="Last Page" aria-label="Last Page">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M5.59 7.41L10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+            </button>
+
+            <div class="controls-divider"></div>
+
+            <button id="showAllBtn" class="action-btn reveal-all-btn" title="Reveal all ayahs on this page" aria-label="Reveal all ayahs">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+              <span>Reveal All</span>
+            </button>
+            <button id="resetPageBtn" class="action-btn reset-btn" title="Reset all ayahs on this page" aria-label="Reset this page">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <span>Reset Page</span>
+            </button>
+             <button id="toggleTextBtn" class="action-btn toggle-text-btn" title="Toggle Uthmani Text Overlay" aria-label="Toggle Text" style="display: none !important;">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/></svg>
+              <span>Mushaf Mode</span>
+            </button>
+            <button id="toggleHintsBtn" class="action-btn toggle-hints-btn active" title="Toggle Ayah Start Hints" aria-label="Toggle Hints">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+              <span id="toggleHintsText">Hints: ON</span>
+            </button>
+            <button id="hidePageBtn" class="action-btn hide-page-btn" title="Hide/Unhide Mushaf Calligraphy Page" aria-label="Hide Page">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 7h10v10H7z"/></svg>
+              <span id="hidePageText">Hide Page</span>
+            </button>
+            <button id="hideTextBtn" class="action-btn hide-text-btn" title="Hide/Unhide Page Text Overlay" aria-label="Hide Text">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M3 4h18v2H3zm0 4h12v2H3zm0 4h18v2H3zm0 4h12v2H3z"/><path d="M2 2l20 20-1.4 1.4L18.6 21H3c-1.1 0-2-.9-2-2V7c0-.7.3-1.3.8-1.7L.6 3.9 2 2.5z" opacity="0.8"/></svg>
+              <span id="hideTextText">Hide Text</span>
+            </button>
+            <button id="hideSelectionBtn" class="action-btn hide-selection-btn" title="Hide/Unhide Selected Range Block-wise" aria-label="Hide Selection">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>
+              <span id="hideSelectionText">Hide Range</span>
+            </button>
+            <button id="themeToggleBtn" class="action-btn theme-toggle-btn" title="Toggle Light/Dark Theme Globally" aria-label="Toggle Theme">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+              <span>Dark Mode</span>
+            </button>
+            <button id="listenModeBtn" class="action-btn listen-mode-btn" title="Detect Voice & Highlight" aria-label="Listen Mode">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+              <span>Listen</span>
+            </button>
+            <button id="pauseListenBtn" class="action-btn pause-listen-btn hidden" title="Pause/Resume Listening" aria-label="Pause Listening">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              <span>Pause</span>
+            </button>
+
+            <div class="controls-divider"></div>
+
+            <button id="surahBtn" class="action-btn surah-btn" title="Browse Surahs" aria-label="Browse Surahs">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+              <span>Surahs</span>
+            </button>
+          </div>
+        </footer>
+      </div>
+    </main>
 
       <!-- System Toast for background tasks -->
       <div id="systemToast" class="system-toast hidden">
@@ -144,67 +472,6 @@
           <span class="listen-confidence">—</span>
         </div>
       </div>
-
-    </main>
-
-    <!-- 🎛️ Bottom Controls -->
-    <footer class="bottom-controls">
-      <div class="controls-inner">
-        <button id="firstPageBtn" class="control-btn" title="First Page" aria-label="First Page">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
-        </button>
-        <button id="prevPageBtn" class="control-btn primary" title="Previous Page" aria-label="Previous Page">
-          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-        </button>
-
-        <div class="page-jumper" role="group" aria-label="Jump to page">
-          <span class="jumper-btn">Page</span>
-          <input type="number" id="pageInput" class="page-input" min="1" max="604" value="1" placeholder="1" aria-label="Page number">
-          <button id="goToPageBtn" class="go-btn" aria-label="Go to page">Go</button>
-        </div>
-
-        <button id="nextPageBtn" class="control-btn primary" title="Next Page" aria-label="Next Page">
-          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-        </button>
-        <button id="lastPageBtn" class="control-btn" title="Last Page" aria-label="Last Page">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M5.59 7.41L10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
-        </button>
-
-        <div class="controls-divider"></div>
-
-        <button id="memoryModeBtn" class="action-btn memory-mode-btn" title="Toggle Memory Test Mode" aria-label="Toggle Memory Test Mode" aria-pressed="false">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 11.5c0 5.25-4.5 9.5-9.5 9.5S2 16.75 2 11.5 6.5 2 11.5 2c1.43 0 2.79.32 4 .89L13.95 6C13.18 5.68 12.36 5.5 11.5 5.5 7.91 5.5 5 8.41 5 12s2.91 6.5 6.5 6.5 6.5-2.91 6.5-6.5c0-1.55-.55-2.98-1.46-4.11l1.49-1.49C19.46 7.96 21 9.6 21 11.5zM11.5 8.5c-.83 0-1.5.67-1.5 1.5v3c0 .55.22 1.05.59 1.41l2.7 2.7 1.41-1.41-2.7-2.7V10c0-.83-.67-1.5-1.5-1.5z"/></svg>
-          <span>Memory Mode</span>
-        </button>
-        <button id="showAllBtn" class="action-btn reveal-all-btn" title="Reveal all ayahs on this page" aria-label="Reveal all ayahs">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-          <span>Reveal All</span>
-        </button>
-        <button id="resetPageBtn" class="action-btn reset-btn" title="Reset all ayahs on this page" aria-label="Reset this page">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-          <span>Reset Page</span>
-        </button>
-        <button id="toggleTextBtn" class="action-btn toggle-text-btn" title="Toggle Uthmani Text Overlay" aria-label="Toggle Text">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/></svg>
-          <span>Text Mode</span>
-        </button>
-        <button id="listenModeBtn" class="action-btn listen-mode-btn" title="Detect Voice & Highlight" aria-label="Listen Mode">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-          <span>Listen</span>
-        </button>
-        <button id="pauseListenBtn" class="action-btn pause-listen-btn hidden" title="Pause/Resume Listening" aria-label="Pause Listening">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-          <span>Pause</span>
-        </button>
-
-        <div class="controls-divider"></div>
-
-        <button id="surahBtn" class="action-btn surah-btn" title="Browse Surahs" aria-label="Browse Surahs">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
-          <span>Surahs</span>
-        </button>
-      </div>
-    </footer>
 
   </div>
 
@@ -248,18 +515,67 @@
     <span class="hint-dot">·</span>
     <span>A Reveal All</span>
     <span class="hint-dot">·</span>
-    <span>M Memory Mode</span>
-    <span class="hint-dot">·</span>
     <span>S Surahs</span>
   </div>
 
-  <script src="script.js"></script>
+  <!-- 🎤 Microphone Permission Explanation Modal -->
+  <div id="micPermissionModal" class="mic-modal">
+    <div class="mic-modal-content">
+      <div class="mic-modal-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        <span>Microphone Required</span>
+      </div>
+      <div class="mic-modal-body">
+        <p>To recite and test your memory using **Listen Mode**, please grant microphone access to this website.</p>
+        
+        <div class="mic-step">
+          <strong>How to allow on Android (Chrome):</strong>
+          <ol style="margin: 4px 0; padding-left: 20px;">
+            <li>Tap the <strong>Lock/Settings icon</strong> 🔒 on the left side of the address bar.</li>
+            <li>Select <strong>Site settings</strong> or <strong>Permissions</strong>.</li>
+            <li>Toggle <strong>Microphone</strong> to <strong>Allow</strong>.</li>
+            <li>Refresh the page and try again.</li>
+          </ol>
+        </div>
+
+        <div class="mic-step">
+          <strong>How to allow on iPhone (Safari):</strong>
+          <ol style="margin: 4px 0; padding-left: 20px;">
+            <li>Tap the <strong>"aA" or Settings icon</strong> in the browser bar.</li>
+            <li>Go to <strong>Website Settings</strong>.</li>
+            <li>Set <strong>Microphone</strong> access to <strong>Allow</strong>.</li>
+          </ol>
+        </div>
+      </div>
+      <button id="closeMicModalBtn" class="mic-modal-btn">Ok, Got It</button>
+    </div>
+  </div>
+
+  <script src="quran_english.js?v=16"></script>
+  <script src="quran_pages_db.js?v=16"></script>
+  <script src="quran_page_lines.js?v=16"></script>
+  <script src="script.js?v=16"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
           .then(reg => console.log('Service Worker registered', reg))
           .catch(err => console.warn('Service Worker registration failed', err));
+      });
+
+      // Reload the page when the service worker is updated and claims control
+      let refreshing = false;
+      const isAlreadyControlled = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing && isAlreadyControlled) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     }
   </script>
