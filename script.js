@@ -2341,7 +2341,7 @@ function createRecognition() {
     rec.onerror = (e) => {
         console.warn('Speech error:', e.error);
         isStartingMic = false; // Reset start state
-        if (e.error === 'aborted') return; // Ignore manual stops
+        if (e.error === 'aborted' || e.error === 'no-speech') return; // Ignore manual stops and silence timeouts
         
         if (e.error === 'not-allowed' || e.error === 'audio-capture' || e.error === 'service-not-allowed') {
             showMicPermissionModal();
