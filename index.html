@@ -437,6 +437,25 @@
               <span>Pause</span>
             </button>
 
+            <!-- 🔊 Listen Mode Waveform & Indicator -->
+            <div id="waveformContainer" class="waveform-container hidden">
+              <div class="waveform-bars">
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+              </div>
+              <div id="listenIndicator" class="listen-indicator hidden">
+                <span class="listen-label">Detected</span>
+                <span class="listen-word">—</span>
+                <span class="listen-confidence">—</span>
+              </div>
+            </div>
+
             <div class="controls-divider"></div>
 
             <button id="surahBtn" class="action-btn surah-btn" title="Browse Surahs" aria-label="Browse Surahs">
@@ -454,24 +473,7 @@
         <span id="systemToastText">Building global index...</span>
       </div>
 
-      <!-- 🔊 Listen Mode Waveform & Indicator -->
-      <div id="waveformContainer" class="waveform-container hidden">
-        <div class="waveform-bars">
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-          <div class="waveform-bar"></div>
-        </div>
-        <div id="listenIndicator" class="listen-indicator hidden">
-          <span class="listen-label">Detected</span>
-          <span class="listen-word">—</span>
-          <span class="listen-confidence">—</span>
-        </div>
-      </div>
+
 
   </div>
 
@@ -560,6 +562,7 @@
   <script src="quran_pages_db.js?v=16"></script>
   <script src="quran_page_lines.js?v=16"></script>
   <script src="script.js?v=16"></script>
+  <script defer src="/_vercel/insights/script.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
