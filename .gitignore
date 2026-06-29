@@ -9,3 +9,6 @@ nul
 # Local environment settings/cache
 .DS_Store
 Thumbs.db
+
+# Node dependencies
+node_modules/
