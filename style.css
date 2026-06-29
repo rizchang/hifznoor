@@ -2341,10 +2341,10 @@ body.light-mode .listen-word {
 }
 
 .page-text-overlay:not(.active) .word.practice-success {
-  background: rgba(43, 217, 151, 0.25) !important; /* Glowing green highlight on calligraphy */
-  border: 1px solid rgba(43, 217, 151, 0.45) !important;
+  background: transparent !important;
+  border: none !important;
   color: #2bd997 !important; /* Make revealed text visible */
-  box-shadow: 0 0 8px rgba(43, 217, 151, 0.35) !important;
+  box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;
@@ -2352,10 +2352,10 @@ body.light-mode .listen-word {
 }
 
 body.light-mode .page-text-overlay:not(.active) .word.practice-success {
-  background: rgba(13, 79, 64, 0.18) !important; /* Glowing green highlight for light mode */
-  border: 1px solid rgba(13, 79, 64, 0.35) !important;
+  background: transparent !important;
+  border: none !important;
   color: #0d4f40 !important; /* Make revealed text visible */
-  box-shadow: 0 0 6px rgba(13, 79, 64, 0.15) !important;
+  box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;
@@ -2934,10 +2934,10 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 
 /* Correct/Revealed Recitations in Test Mode */
 .page-text-overlay:not(.active) .word.timed-test-success {
-  background: rgba(43, 217, 151, 0.25) !important; /* Glowing green highlight on calligraphy */
-  border: 1px solid rgba(43, 217, 151, 0.45) !important;
+  background: transparent !important;
+  border: none !important;
   color: #2bd997 !important; /* Make revealed text visible */
-  box-shadow: 0 0 8px rgba(43, 217, 151, 0.35) !important;
+  box-shadow: none !important;
   text-shadow: none !important;
   border-radius: 4px;
   pointer-events: auto;
@@ -2946,10 +2946,10 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 }
 
 body.light-mode .page-text-overlay:not(.active) .word.timed-test-success {
-  background: rgba(13, 79, 64, 0.18) !important; /* Glowing green highlight for light mode */
-  border: 1px solid rgba(13, 79, 64, 0.35) !important;
+  background: transparent !important;
+  border: none !important;
   color: #0d4f40 !important; /* Make revealed text visible */
-  box-shadow: 0 0 6px rgba(13, 79, 64, 0.15) !important;
+  box-shadow: none !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;
