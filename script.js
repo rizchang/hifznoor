@@ -2265,6 +2265,7 @@
 let lastStartAttempt = 0;
 let restartTimer = null;
 let consecutiveErrors = 0;
+let isStartingMic = false; // 🛡️ Prevents race conditions
 
 async function checkMicPermission() {
     try {
@@ -2278,22 +2279,34 @@ async function checkMicPermission() {
 }
 
 function showMicPermissionModal() {
-    if (els.micPermissionModal) {
-        els.micPermissionModal.classList.add('active');
-    }
+    if (els.micPermissionModal) els.micPermissionModal.classList.add('active');
 }
 
 function hideMicPermissionModal() {
-    if (els.micPermissionModal) {
-        els.micPermissionModal.classList.remove('active');
+    if (els.micPermissionModal) els.micPermissionModal.classList.remove('active');
+}
+
+// 🔄 NUCLEAR CLEANUP: Completely destroys the old recognition object
+function destroyRecognition() {
+    if (recognition) {
+        try { recognition.abort(); } catch (e) {}
+        try { recognition.stop(); } catch (e) {}
+        // Sever all event handlers to prevent ghost callbacks
+        recognition.onstart = null;
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition = null;
     }
 }
 
-// 🌟 CRITICAL FIX: Factory function to create a FRESH SpeechRecognition instance every time.
-// Android Chrome corrupts the speech engine if you reuse the same object after it stops.
+// 🌟 FACTORY: Creates a BRAND NEW SpeechRecognition instance every time
 function createRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
+    
+    // 🧨 CRITICAL: Destroy old instance first to prevent Android engine corruption
+    destroyRecognition();
     
     const rec = new SpeechRecognition();
     rec.continuous = true;
@@ -2302,7 +2315,8 @@ function createRecognition() {
     rec.lang = state.listenLang || 'ar-SA';
 
     rec.onstart = () => {
-        console.log('Mic started');
+        console.log('🎤 Mic started (fresh instance)');
+        isStartingMic = false;
         els.listenModeBtn.classList.add('recording');
         consecutiveErrors = 0;
     };
@@ -2324,70 +2338,88 @@ function createRecognition() {
     };
 
     rec.onerror = (e) => {
-        console.warn('Speech recognition error:', e.error);
+        console.warn('Speech error:', e.error);
+        if (e.error === 'aborted') return; // Ignore manual stops
+        
         if (e.error === 'not-allowed' || e.error === 'audio-capture' || e.error === 'service-not-allowed') {
             showMicPermissionModal();
             consecutiveErrors = 3;
             if (state.isListenMode) toggleListenMode();
-        } else if (e.error === 'aborted') {
-            return; 
         } else {
             consecutiveErrors++;
             if (consecutiveErrors >= 3) {
-                console.warn('Too many speech recognition errors, stopping.');
+                console.warn('Too many errors, stopping mic.');
                 if (state.isListenMode) toggleListenMode();
             }
         }
     };
 
     rec.onend = () => {
-        console.log('Mic ended');
+        console.log('🎤 Mic ended');
         els.listenModeBtn.classList.remove('recording');
         
-        if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
-            if (restartTimer) clearTimeout(restartTimer);
-            
-            const now = Date.now();
-            const timeSinceLastStart = now - lastStartAttempt;
-            
-            // 🛡️ Adaptive delay to prevent rapid beep loops on Android
-            let delay = 1000; 
-            if (timeSinceLastStart < 1000) {
-                delay = 4000; // If it crashed immediately, wait 4 seconds
-            }
-            if (isMobileDevice) {
-                delay = Math.max(delay, 2000); // Minimum 2s on mobile to let OS release hardware
-            }
-
-            restartTimer = setTimeout(() => {
-                if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
-                    try {
-                        // 🔄 CRITICAL: Re-instantiate the object to clear internal Android bugs
-                        recognition = createRecognition();
-                        if (!recognition) return;
-                        
-                        lastStartAttempt = Date.now();
-                        recognition.start();
-                    } catch (err) {
-                        console.warn('Failed to restart recognition:', err);
-                        consecutiveErrors++;
-                        if (consecutiveErrors >= 3) {
-                            if (state.isListenMode) toggleListenMode();
-                        } else {
-                            restartTimer = setTimeout(() => {
-                                if (state.isListenMode && !state.isListenPaused) {
-                                    recognition = createRecognition();
-                                    if(recognition) {
-                                        lastStartAttempt = Date.now();
-                                        try { recognition.start(); } catch(e) {}
-                                    }
-                                }
-                            }, 5000);
-                        }
-                    }
-                }
-            }, delay);
+        if (!state.isListenMode || state.isListenPaused || consecutiveErrors >= 3) {
+            return; // User stopped it, or too many errors - DO NOT RESTART
         }
+        
+        if (restartTimer) clearTimeout(restartTimer);
+        
+        const now = Date.now();
+        const timeSinceLastStart = now - lastStartAttempt;
+        
+        // 🛡️ ANDROID-SPECIFIC AGGRESSIVE DELAYS
+        let delay;
+        if (isMobileDevice) {
+            // Android needs MINIMUM 3 seconds between restarts to release hardware
+            if (timeSinceLastStart < 3000) {
+                delay = 6000; // Crashed fast? Wait 6 seconds
+            } else if (consecutiveErrors >= 2) {
+                delay = 8000; // Multiple errors? Wait 8 seconds
+            } else {
+                delay = 3000; // Normal Android restart delay
+            }
+        } else {
+            delay = timeSinceLastStart < 1000 ? 3000 : 800;
+        }
+        
+        console.log(`⏳ Restarting mic in ${delay}ms...`);
+        
+        restartTimer = setTimeout(() => {
+            if (!state.isListenMode || state.isListenPaused || consecutiveErrors >= 3) return;
+            
+            try {
+                // 🔄 CRITICAL: Create FRESH instance for restart
+                recognition = createRecognition();
+                if (!recognition) return;
+                
+                isStartingMic = true;
+                lastStartAttempt = Date.now();
+                recognition.start();
+            } catch (err) {
+                console.warn('Restart failed:', err);
+                isStartingMic = false;
+                consecutiveErrors++;
+                if (consecutiveErrors >= 3) {
+                    if (state.isListenMode) toggleListenMode();
+                } else {
+                    // Try again after a very long delay
+                    restartTimer = setTimeout(() => {
+                        if (!state.isListenMode || state.isListenPaused) return;
+                        try {
+                            recognition = createRecognition();
+                            if (recognition) {
+                                isStartingMic = true;
+                                lastStartAttempt = Date.now();
+                                recognition.start();
+                            }
+                        } catch(e) {
+                            console.warn('Final restart attempt failed');
+                            isStartingMic = false;
+                        }
+                    }, 8000);
+                }
+            }
+        }, delay);
     };
 
     return rec;
@@ -2396,33 +2428,53 @@ function createRecognition() {
 function startListening() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        alert('Microphone speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+        alert('Speech recognition not supported. Please use Chrome, Edge, or Safari.');
         toggleListenMode();
         return;
     }
-
-    // Always create a fresh instance when starting manually
-    if (restartTimer) clearTimeout(restartTimer);
-    recognition = createRecognition();
-    if (!recognition) return;
-
-    try {
-        lastStartAttempt = Date.now();
-        recognition.start();
-    } catch (e) {
-        console.warn('Failed to start recognition:', e);
+    
+    if (isStartingMic) {
+        console.log('Mic already starting, skipping...');
+        return;
     }
-}
-
-function stopListening() {
+    
+    // Clear any pending restart
     if (restartTimer) {
         clearTimeout(restartTimer);
         restartTimer = null;
     }
-    if (recognition) {
-        try {
-            recognition.stop();
-        } catch (e) {}
+    
+    // 🧨 Create BRAND NEW instance (never reuse on Android)
+    recognition = createRecognition();
+    if (!recognition) return;
+    
+    try {
+        isStartingMic = true;
+        lastStartAttempt = Date.now();
+        recognition.start();
+    } catch (e) {
+        console.warn('Failed to start mic:', e);
+        isStartingMic = false;
+    }
+}
+
+function stopListening() {
+    console.log('🛑 Stopping mic completely');
+    
+    // Clear any pending restart
+    if (restartTimer) {
+        clearTimeout(restartTimer);
+        restartTimer = null;
+    }
+    
+    // Signal that we want to stop (prevents onend from restarting)
+    isStartingMic = false;
+    
+    // 🧨 NUCLEAR: Destroy the recognition object completely
+    destroyRecognition();
+    
+    if (els.listenModeBtn) {
+        els.listenModeBtn.classList.remove('recording');
     }
 }
   // Fuzzy String Matching (Levenshtein Distance) to handle Speech-To-Text minor mishears
