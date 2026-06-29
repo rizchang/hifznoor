@@ -1855,21 +1855,43 @@ body.memory-mode-active .ayah-translation.revealed {
    LISTEN MODE WAVEFORM & INDICATOR
    ============================================ */
 .waveform-container {
-  position: fixed;
-  bottom: 90px;
-  right: 24px;
-  z-index: 100;
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: rgba(16, 30, 54, 0.45);
+  border: 1px solid rgba(201, 168, 76, 0.25);
+  border-radius: 10px;
+  margin: 4px 0 12px 0;
+  box-sizing: border-box;
+  order: -1; /* Display at the top of controls-inner */
+  transition: all 0.3s ease;
 }
 
 .waveform-container.hidden {
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
+  display: none !important;
+}
+
+body.light-mode .waveform-container {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(124, 95, 24, 0.3) !important;
+}
+
+body.light-mode .listen-indicator {
+  background: rgba(248, 246, 240, 0.95) !important;
+  border-color: rgba(124, 95, 24, 0.35) !important;
+  color: #2d3748 !important;
+}
+
+body.light-mode .listen-label {
+  color: #7c5f18 !important;
+}
+
+body.light-mode .listen-word {
+  color: #2d3748 !important;
 }
 
 .waveform-bars {
@@ -2319,21 +2341,21 @@ body.memory-mode-active .ayah-translation.revealed {
 }
 
 .page-text-overlay:not(.active) .word.practice-success {
-  background: transparent !important;
-  border: none !important;
-  color: #2bd997 !important; /* Mint green text in dark mode */
-  box-shadow: none !important;
-  text-shadow: 0 0 2px rgba(43, 217, 151, 0.5) !important;
+  background: rgba(43, 217, 151, 0.25) !important; /* Glowing green highlight on calligraphy */
+  border: 1px solid rgba(43, 217, 151, 0.45) !important;
+  color: transparent !important; /* Hide overlay text */
+  box-shadow: 0 0 8px rgba(43, 217, 151, 0.35) !important;
+  text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;
   border-radius: 4px;
 }
 
 body.light-mode .page-text-overlay:not(.active) .word.practice-success {
-  background: transparent !important;
-  border: none !important;
-  color: var(--teal) !important; /* Emerald green text in light mode */
-  box-shadow: none !important;
+  background: rgba(13, 79, 64, 0.18) !important; /* Glowing green highlight for light mode */
+  border: 1px solid rgba(13, 79, 64, 0.35) !important;
+  color: transparent !important; /* Hide overlay text */
+  box-shadow: 0 0 6px rgba(13, 79, 64, 0.15) !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;
@@ -2912,11 +2934,11 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 
 /* Correct/Revealed Recitations in Test Mode */
 .page-text-overlay:not(.active) .word.timed-test-success {
-  background: transparent !important;
-  border: none !important;
-  color: #2bd997 !important; /* Mint green text in dark mode */
-  box-shadow: none !important;
-  text-shadow: 0 0 2px rgba(43, 217, 151, 0.5) !important;
+  background: rgba(43, 217, 151, 0.25) !important; /* Glowing green highlight on calligraphy */
+  border: 1px solid rgba(43, 217, 151, 0.45) !important;
+  color: transparent !important; /* Hide overlay text */
+  box-shadow: 0 0 8px rgba(43, 217, 151, 0.35) !important;
+  text-shadow: none !important;
   border-radius: 4px;
   pointer-events: auto;
   padding: 3px 6px !important;
@@ -2924,10 +2946,10 @@ body.light-mode .page-text-overlay:not(.active) .word.practice-success {
 }
 
 body.light-mode .page-text-overlay:not(.active) .word.timed-test-success {
-  background: transparent !important;
-  border: none !important;
-  color: var(--teal) !important; /* Emerald green text in light mode */
-  box-shadow: none !important;
+  background: rgba(13, 79, 64, 0.18) !important; /* Glowing green highlight for light mode */
+  border: 1px solid rgba(13, 79, 64, 0.35) !important;
+  color: transparent !important; /* Hide overlay text */
+  box-shadow: 0 0 6px rgba(13, 79, 64, 0.15) !important;
   text-shadow: none !important;
   padding: 3px 6px !important;
   margin: -3px -6px !important;

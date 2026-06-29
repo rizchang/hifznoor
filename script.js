@@ -2145,7 +2145,8 @@
         bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
         bar.style.animationDelay = `${Math.random() * 0.4}s`;
       });
-      return false;
+      // Fall back to animated CSS waveform, but return true so SpeechRecognition is not blocked
+      return true;
     }
   }
 
@@ -2339,6 +2340,7 @@ function createRecognition() {
 
     rec.onerror = (e) => {
         console.warn('Speech error:', e.error);
+        isStartingMic = false; // Reset start state
         if (e.error === 'aborted') return; // Ignore manual stops
         
         if (e.error === 'not-allowed' || e.error === 'audio-capture' || e.error === 'service-not-allowed') {
@@ -2356,6 +2358,7 @@ function createRecognition() {
 
     rec.onend = () => {
         console.log('🎤 Mic ended');
+        isStartingMic = false; // Reset start state
         els.listenModeBtn.classList.remove('recording');
         
         if (!state.isListenMode || state.isListenPaused || consecutiveErrors >= 3) {
@@ -2503,10 +2506,24 @@ function stopListening() {
 
   function isFuzzyMatch(w1, w2) {
     if (w1 === w2) return true;
-    const maxLen = Math.max(w1.length, w2.length);
-    if (Math.abs(w1.length - w2.length) > 3) return false; // Max length difference of 3
     
-    const dist = getEditDistance(w1, w2);
+    // Clean common prefixes (Al-, Wa-, Fa-, Bi-) to improve matching rates
+    const cleanPrefix = (w) => {
+      if (w.startsWith('ال') && w.length > 3) return w.slice(2);
+      if (w.startsWith('و') && w.length > 2) return w.slice(1);
+      if (w.startsWith('ف') && w.length > 2) return w.slice(1);
+      if (w.startsWith('ب') && w.length > 2) return w.slice(1);
+      return w;
+    };
+    
+    const c1 = cleanPrefix(w1);
+    const c2 = cleanPrefix(w2);
+    if (c1 === c2) return true;
+    
+    const maxLen = Math.max(c1.length, c2.length);
+    if (Math.abs(c1.length - c2.length) > 3) return false;
+    
+    const dist = getEditDistance(c1, c2);
     if (maxLen <= 2) return dist === 0; // Very short words need exact match
     if (maxLen <= 4) return dist <= 1;  // Medium-short: allow 1 edit
     if (maxLen <= 7) return dist <= 2;  // Medium-long: allow 2 edits
