@@ -2262,7 +2262,7 @@
     }
   }
 
- let lastStartAttempt = 0;
+let lastStartAttempt = 0;
 let restartTimer = null;
 let consecutiveErrors = 0;
 
@@ -2289,7 +2289,8 @@ function hideMicPermissionModal() {
     }
 }
 
-// 🌟 NEW: Factory function to create a fresh SpeechRecognition instance
+// 🌟 CRITICAL FIX: Factory function to create a FRESH SpeechRecognition instance every time.
+// Android Chrome corrupts the speech engine if you reuse the same object after it stops.
 function createRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
@@ -2303,7 +2304,7 @@ function createRecognition() {
     rec.onstart = () => {
         console.log('Mic started');
         els.listenModeBtn.classList.add('recording');
-        consecutiveErrors = 0; // Reset error count on successful start
+        consecutiveErrors = 0;
     };
 
     rec.onresult = (event) => {
@@ -2312,7 +2313,6 @@ function createRecognition() {
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             const res = event.results[i];
             if (res.isFinal) {
-                // Merge all final alternatives to catch any close phonetic matches
                 for (let j = 0; j < res.length; j++) {
                     finalTranscript += ' ' + res[j].transcript;
                 }
@@ -2327,10 +2327,9 @@ function createRecognition() {
         console.warn('Speech recognition error:', e.error);
         if (e.error === 'not-allowed' || e.error === 'audio-capture' || e.error === 'service-not-allowed') {
             showMicPermissionModal();
-            consecutiveErrors = 3; // force stop
+            consecutiveErrors = 3;
             if (state.isListenMode) toggleListenMode();
         } else if (e.error === 'aborted') {
-            // Ignore aborted errors, usually caused by manual stop()
             return; 
         } else {
             consecutiveErrors++;
@@ -2345,7 +2344,6 @@ function createRecognition() {
         console.log('Mic ended');
         els.listenModeBtn.classList.remove('recording');
         
-        // If we are still supposed to be listening, and not paused, and not too many errors
         if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
             if (restartTimer) clearTimeout(restartTimer);
             
@@ -2355,10 +2353,10 @@ function createRecognition() {
             // 🛡️ Adaptive delay to prevent rapid beep loops on Android
             let delay = 1000; 
             if (timeSinceLastStart < 1000) {
-                delay = 4000; // If it crashed immediately, wait 4 seconds before trying again
+                delay = 4000; // If it crashed immediately, wait 4 seconds
             }
             if (isMobileDevice) {
-                delay = Math.max(delay, 2000); // Minimum 2s on mobile to allow OS to release mic hardware
+                delay = Math.max(delay, 2000); // Minimum 2s on mobile to let OS release hardware
             }
 
             restartTimer = setTimeout(() => {
@@ -2376,7 +2374,6 @@ function createRecognition() {
                         if (consecutiveErrors >= 3) {
                             if (state.isListenMode) toggleListenMode();
                         } else {
-                            // If it fails to start, try again after a long delay
                             restartTimer = setTimeout(() => {
                                 if (state.isListenMode && !state.isListenPaused) {
                                     recognition = createRecognition();
@@ -2404,7 +2401,7 @@ function startListening() {
         return;
     }
 
-    // Always create a fresh instance when starting manually to ensure a clean state
+    // Always create a fresh instance when starting manually
     if (restartTimer) clearTimeout(restartTimer);
     recognition = createRecognition();
     if (!recognition) return;
