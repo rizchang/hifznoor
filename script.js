@@ -2262,132 +2262,172 @@
     }
   }
 
-  let lastStartAttempt = 0;
-  let restartTimer = null;
-  let consecutiveErrors = 0;
+ let lastStartAttempt = 0;
+let restartTimer = null;
+let consecutiveErrors = 0;
 
-  async function checkMicPermission() {
+async function checkMicPermission() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      return true;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        return true;
     } catch (e) {
-      console.warn("Microphone permission check failed:", e);
-      return false;
+        console.warn("Microphone permission check failed:", e);
+        return false;
     }
-  }
+}
 
-  function showMicPermissionModal() {
+function showMicPermissionModal() {
     if (els.micPermissionModal) {
-      els.micPermissionModal.classList.add('active');
+        els.micPermissionModal.classList.add('active');
     }
-  }
+}
 
-  function hideMicPermissionModal() {
+function hideMicPermissionModal() {
     if (els.micPermissionModal) {
-      els.micPermissionModal.classList.remove('active');
+        els.micPermissionModal.classList.remove('active');
     }
-  }
+}
 
-  function startListening() {
+// 🌟 NEW: Factory function to create a fresh SpeechRecognition instance
+function createRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Microphone speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
-      toggleListenMode();
-      return;
-    }
+    if (!SpeechRecognition) return null;
+    
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 3;
+    rec.lang = state.listenLang || 'ar-SA';
 
-    if (!recognition) {
-      recognition = new SpeechRecognition();
-      recognition.continuous = true; // Use continuous on all devices to prevent beep/flashing loops on mobile
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 3; // Enable 3 alternatives to capture dialect variations and minor mishears
-
-      recognition.onstart = () => {
+    rec.onstart = () => {
+        console.log('Mic started');
         els.listenModeBtn.classList.add('recording');
-        // Reset error count on successful start
-        consecutiveErrors = 0;
-      };
+        consecutiveErrors = 0; // Reset error count on successful start
+    };
 
-      recognition.onresult = (event) => {
+    rec.onresult = (event) => {
         let interimTranscript = '';
         let finalTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const res = event.results[i];
-          if (res.isFinal) {
-            // Merge all final alternatives to catch any close phonetic matches
-            for (let j = 0; j < res.length; j++) {
-              finalTranscript += ' ' + res[j].transcript;
+            const res = event.results[i];
+            if (res.isFinal) {
+                // Merge all final alternatives to catch any close phonetic matches
+                for (let j = 0; j < res.length; j++) {
+                    finalTranscript += ' ' + res[j].transcript;
+                }
+            } else {
+                interimTranscript += res[0].transcript;
             }
-          } else {
-            interimTranscript += res[0].transcript;
-          }
         }
-        
         processTranscript(finalTranscript.trim() || interimTranscript);
-      };
+    };
 
-      recognition.onerror = (e) => {
+    rec.onerror = (e) => {
         console.warn('Speech recognition error:', e.error);
-        if (e.error === 'not-allowed' || e.error === 'audio-capture') {
-          showMicPermissionModal();
-          consecutiveErrors = 3; // force stop
-          if (state.isListenMode) toggleListenMode();
-        } else if (e.error === 'service-not-allowed') {
-          alert('Speech recognition service is temporarily unavailable. Please check your browser settings.');
-          consecutiveErrors = 3; // force stop
-          if (state.isListenMode) toggleListenMode();
-        } else if (e.error !== 'no-speech') {
-          consecutiveErrors++;
-          if (consecutiveErrors >= 3) {
-            alert('Speech recognition failed to start repeatedly. Please close other apps using the microphone or check settings.');
-            consecutiveErrors = 0;
+        if (e.error === 'not-allowed' || e.error === 'audio-capture' || e.error === 'service-not-allowed') {
+            showMicPermissionModal();
+            consecutiveErrors = 3; // force stop
             if (state.isListenMode) toggleListenMode();
-          }
-        }
-      };
-
-      recognition.onend = () => {
-        els.listenModeBtn.classList.remove('recording');
-
-        // On mobile, use a longer cooldown before restarting to prevent rapid start-stop beep loops.
-        if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
-          const now = Date.now();
-          // Use a longer base delay on mobile to prevent the rapid chirp/flash cycle
-          const baseDelay = isMobileDevice ? 1500 : 300;
-          const delay = (now - lastStartAttempt < 2000) ? 2500 : baseDelay;
-          
-          clearTimeout(restartTimer);
-          restartTimer = setTimeout(() => {
-            if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
-              try {
-                lastStartAttempt = Date.now();
-                recognition.start();
-              } catch (err) {}
+        } else if (e.error === 'aborted') {
+            // Ignore aborted errors, usually caused by manual stop()
+            return; 
+        } else {
+            consecutiveErrors++;
+            if (consecutiveErrors >= 3) {
+                console.warn('Too many speech recognition errors, stopping.');
+                if (state.isListenMode) toggleListenMode();
             }
-          }, delay);
         }
-      };
+    };
+
+    rec.onend = () => {
+        console.log('Mic ended');
+        els.listenModeBtn.classList.remove('recording');
+        
+        // If we are still supposed to be listening, and not paused, and not too many errors
+        if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
+            if (restartTimer) clearTimeout(restartTimer);
+            
+            const now = Date.now();
+            const timeSinceLastStart = now - lastStartAttempt;
+            
+            // 🛡️ Adaptive delay to prevent rapid beep loops on Android
+            let delay = 1000; 
+            if (timeSinceLastStart < 1000) {
+                delay = 4000; // If it crashed immediately, wait 4 seconds before trying again
+            }
+            if (isMobileDevice) {
+                delay = Math.max(delay, 2000); // Minimum 2s on mobile to allow OS to release mic hardware
+            }
+
+            restartTimer = setTimeout(() => {
+                if (state.isListenMode && !state.isListenPaused && consecutiveErrors < 3) {
+                    try {
+                        // 🔄 CRITICAL: Re-instantiate the object to clear internal Android bugs
+                        recognition = createRecognition();
+                        if (!recognition) return;
+                        
+                        lastStartAttempt = Date.now();
+                        recognition.start();
+                    } catch (err) {
+                        console.warn('Failed to restart recognition:', err);
+                        consecutiveErrors++;
+                        if (consecutiveErrors >= 3) {
+                            if (state.isListenMode) toggleListenMode();
+                        } else {
+                            // If it fails to start, try again after a long delay
+                            restartTimer = setTimeout(() => {
+                                if (state.isListenMode && !state.isListenPaused) {
+                                    recognition = createRecognition();
+                                    if(recognition) {
+                                        lastStartAttempt = Date.now();
+                                        try { recognition.start(); } catch(e) {}
+                                    }
+                                }
+                            }, 5000);
+                        }
+                    }
+                }
+            }, delay);
+        }
+    };
+
+    return rec;
+}
+
+function startListening() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert('Microphone speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+        toggleListenMode();
+        return;
     }
 
-    // Set dynamic speech language
-    recognition.lang = state.listenLang || 'ar-SA';
+    // Always create a fresh instance when starting manually to ensure a clean state
+    if (restartTimer) clearTimeout(restartTimer);
+    recognition = createRecognition();
+    if (!recognition) return;
+
     try {
-      clearTimeout(restartTimer);
-      lastStartAttempt = Date.now();
-      recognition.start();
-    } catch (e) {}
-  }
-
-  function stopListening() {
-    clearTimeout(restartTimer);
-    if (recognition) {
-      try {
-        recognition.stop();
-      } catch (e) {}
+        lastStartAttempt = Date.now();
+        recognition.start();
+    } catch (e) {
+        console.warn('Failed to start recognition:', e);
     }
-  }
+}
 
+function stopListening() {
+    if (restartTimer) {
+        clearTimeout(restartTimer);
+        restartTimer = null;
+    }
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (e) {}
+    }
+}
   // Fuzzy String Matching (Levenshtein Distance) to handle Speech-To-Text minor mishears
   function getEditDistance(a, b) {
     if (a.length === 0) return b.length;
