@@ -51,9 +51,10 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Scheherazade+New:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="UthmanicHafs1 Ver16.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a1628">
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
 </head>
 <body class="light-mode">
 
@@ -192,7 +193,7 @@
             <div class="page-corner tl"></div>
             <div class="page-corner tr"></div>
                  <div class="page-image-container" id="pageImageContainer">
-              <img id="pageImage" class="page-image" alt="Quran Page" src="" loading="eager">
+              <img id="pageImage" class="page-image" alt="Quran Page" src="" loading="eager" fetchpriority="high">
               <canvas id="traceCanvas" class="trace-canvas"></canvas>
               <!-- Full Page Mask for instant hiding -->
               <div id="fullPageMask" class="full-page-mask"></div>
@@ -686,10 +687,10 @@
     </div>
   </div>
 
-  <script src="quran_english.js?v=27"></script>
-  <script src="quran_pages_db.js?v=27"></script>
-  <script src="quran_page_lines.js?v=27"></script>
-  <script src="script.js?v=27"></script>
+  <script src="quran_english.js?v=28" defer></script>
+  <script src="quran_pages_db.js?v=28" defer></script>
+  <script src="quran_page_lines.js?v=28" defer></script>
+  <script src="script.js?v=28" defer></script>
   <script defer src="/_vercel/insights/script.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
@@ -710,7 +711,5 @@
       });
     }
   </script>
-   <script defer src="/_vercel/insights/script.
-  js"></script>
 </body>
 </html>

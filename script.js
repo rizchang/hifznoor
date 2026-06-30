@@ -67,6 +67,7 @@
     pageWordData: [],             // Enhanced word data: [{text, ayahNum, wordIdx}]
     ayahCoordinates: [],
     coordsOverrides: {},
+    cvCache: {},                  // Cache for detected coordinates per page to prevent expensive re-computations
     lastTranscriptTime: 0,        // For debouncing transcript processing
     isTranslationPinned: false,   // Keeps the translation panel open on click, closes on hover exit
     highestConfidenceWord: '',    // Track the best-matched word for UI feedback
@@ -232,6 +233,13 @@
       const coordsData = JSON.parse(localStorage.getItem(COORDS_STORAGE_KEY));
       if (coordsData) {
         state.coordsOverrides = coordsData;
+      }
+    } catch (e) {}
+
+    try {
+      const cvData = JSON.parse(localStorage.getItem('hifznoor_cv_cache'));
+      if (cvData) {
+        state.cvCache = cvData;
       }
     } catch (e) {}
 
@@ -406,7 +414,16 @@
 
       // 🔍 CV marker detection: ONLY run when memory mode is first used, then cache
       if (_memoryModeEverActivated) {
-        state.ayahCoordinates = await detectAyahMarkers(els.pageImage, ayahs);
+        if (state.cvCache[targetPage]) {
+          state.ayahCoordinates = state.cvCache[targetPage];
+        } else {
+          const coords = await detectAyahMarkers(els.pageImage, ayahs);
+          state.ayahCoordinates = coords;
+          state.cvCache[targetPage] = coords;
+          try {
+            localStorage.setItem('hifznoor_cv_cache', JSON.stringify(state.cvCache));
+          } catch (e) {}
+        }
         if (state.isMemoryMode) renderMemoryCircles();
       }
 
@@ -3173,11 +3190,20 @@ function stopListening() {
       // 🔍 Trigger CV detection on first memory mode use (deferred optimization)
       if (!_memoryModeEverActivated) {
         _memoryModeEverActivated = true;
-        // Run CV detection in background, don't await
-        detectAyahMarkers(els.pageImage, state.ayahs).then(coords => {
-          state.ayahCoordinates = coords;
+        if (state.cvCache[state.currentPage]) {
+          state.ayahCoordinates = state.cvCache[state.currentPage];
           if (state.isMemoryMode) renderMemoryCircles();
-        });
+        } else {
+          // Run CV detection in background, don't await
+          detectAyahMarkers(els.pageImage, state.ayahs).then(coords => {
+            state.ayahCoordinates = coords;
+            state.cvCache[state.currentPage] = coords;
+            try {
+              localStorage.setItem('hifznoor_cv_cache', JSON.stringify(state.cvCache));
+            } catch (e) {}
+            if (state.isMemoryMode) renderMemoryCircles();
+          });
+        }
       }
 
       document.body.classList.add('memory-mode-active');
