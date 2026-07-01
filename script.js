@@ -2104,76 +2104,17 @@
     if (!waveform) return false;
     waveform.classList.remove('hidden');
     
-    if (isMobileDevice) {
-      console.log('Mobile device: using CSS waveform to prevent hardware feedback.');
-      const bars = waveform.querySelectorAll('.waveform-bar');
-      bars.forEach(bar => {
-        bar.style.animation = 'waveform-bounce 0.5s ease-in-out infinite alternate';
-        bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
-        bar.style.animationDelay = `${Math.random() * 0.4}s`;
-      });
-      return true;
-    }
-    
-    try {
-      // Request raw audio access with noise cancellation, echo cancellation, and AGC enabled
-      microphoneStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-      
-      // Setup Web Audio API
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioContext = new AudioContext();
-      analyser = audioContext.createAnalyser();
-      
-      // 64 fftSize gives us 32 frequency bins, which is perfect for mapping to our 8 bars
-      analyser.fftSize = 64; 
-      analyser.smoothingTimeConstant = 0.7; // Smooths out the jumps naturally
-      
-      const source = audioContext.createMediaStreamSource(microphoneStream);
-      source.connect(analyser);
-      
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const bars = waveform.querySelectorAll('.waveform-bar');
-      
-      function updateWaveform() {
-        if (!analyser) return;
-        analyser.getByteFrequencyData(dataArray);
-        
-        // Map the frequency bins into our 8 visual bars
-        const step = Math.floor(analyser.frequencyBinCount / bars.length);
-        
-        bars.forEach((bar, i) => {
-          let sum = 0;
-          for(let j = 0; j < step; j++) {
-            sum += dataArray[i * step + j];
-          }
-          const avg = sum / step;
-          
-          // Map 0-255 dB scale to physical pixel height (4px to 28px)
-          const height = 4 + (avg / 255) * 24;
-          bar.style.height = `${height}px`;
-        });
-        
-        waveformAnimId = requestAnimationFrame(updateWaveform);
-      }
-      updateWaveform();
-      return true;
-    } catch (err) {
-      console.warn('Real-time audio level failed, using fallback animation.', err);
-      const bars = waveform.querySelectorAll('.waveform-bar');
-      bars.forEach(bar => {
-        bar.style.animation = 'waveform-bounce 0.5s ease-in-out infinite alternate';
-        bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
-        bar.style.animationDelay = `${Math.random() * 0.4}s`;
-      });
-      // Fall back to animated CSS waveform, but return true so SpeechRecognition is not blocked
-      return true;
-    }
+    // To prevent device capture conflicts between Web Audio API (getUserMedia) and 
+    // SpeechRecognition (which can cause mic detection to fail entirely even when 
+    // permission is granted), we use a smooth, responsive CSS animation for the waveform.
+    console.log('Using CSS waveform animation to prevent microphone resource conflicts.');
+    const bars = waveform.querySelectorAll('.waveform-bar');
+    bars.forEach(bar => {
+      bar.style.animation = 'waveform-bounce 0.5s ease-in-out infinite alternate';
+      bar.style.animationDuration = `${0.3 + Math.random() * 0.6}s`;
+      bar.style.animationDelay = `${Math.random() * 0.4}s`;
+    });
+    return true;
   }
 
   function stopWaveform() {

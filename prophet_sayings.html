@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sayings of Prophet Muhammad (SAW)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Poppins:wght@300;400;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #8B6914 0%, #B8860B 25%, #DAA520 50%, #D4AF37 75%, #B8860B 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Islamic Geometric Pattern Background */
+        .islamic-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.15;
+            z-index: 0;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(139, 69, 19, 0.3) 35px, rgba(139, 69, 19, 0.3) 70px),
+                repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(139, 69, 19, 0.3) 35px, rgba(139, 69, 19, 0.3) 70px),
+                repeating-linear-gradient(0deg, transparent, transparent 70px, rgba(255, 215, 0, 0.2) 70px, rgba(255, 215, 0, 0.2) 71px),
+                repeating-linear-gradient(90deg, transparent, transparent 70px, rgba(255, 215, 0, 0.2) 70px, rgba(255, 215, 0, 0.2) 71px);
+            pointer-events: none;
+        }
+
+        .geometric-shape {
+            position: fixed;
+            opacity: 0.1;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .shape-1 {
+            top: 10%;
+            left: 5%;
+            width: 200px;
+            height: 200px;
+            border: 3px solid #4A2C0A;
+            transform: rotate(45deg);
+            border-radius: 10px;
+        }
+
+        .shape-2 {
+            top: 60%;
+            right: 5%;
+            width: 150px;
+            height: 150px;
+            border: 2px solid #4A2C0A;
+            border-radius: 50%;
+        }
+
+        .shape-3 {
+            bottom: 10%;
+            left: 10%;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, transparent 45%, rgba(74, 44, 10, 0.3) 45%, rgba(74, 44, 10, 0.3) 55%, transparent 55%);
+            transform: rotate(30deg);
+        }
+
+        .shape-4 {
+            top: 30%;
+            right: 15%;
+            width: 80px;
+            height: 80px;
+            border: 2px solid #4A2C0A;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+
+        .shape-5 {
+            bottom: 30%;
+            left: 15%;
+            width: 120px;
+            height: 120px;
+            border: 2px solid #4A2C0A;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            background: rgba(74, 44, 10, 0.3);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-bottom: 3px solid rgba(139, 69, 19, 0.5);
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header::before {
+            content: '﷽';
+            display: block;
+            font-family: 'Amiri', serif;
+            font-size: 1.8em;
+            color: #FFF8DC;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            color: #FFF8DC;
+            font-size: 2.8em;
+            margin-bottom: 8px;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            color: #FFE4B5;
+            font-size: 1.1em;
+            font-weight: 300;
+            font-style: italic;
+        }
+
+        .header .ornament {
+            color: #FFD700;
+            font-size: 1.3em;
+            margin: 8px 0;
+            letter-spacing: 15px;
+        }
+
+        .slider-container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .slider {
+            position: relative;
+            height: 550px;
+            border-radius: 25px;
+            overflow: hidden;
+            box-shadow: 0 25px 70px rgba(74, 44, 10, 0.5);
+            background: rgba(74, 44, 10, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        /* Glass Morphism Card - Dark on Golden */
+        .slide-content {
+            position: relative;
+            z-index: 2;
+            max-width: 900px;
+            padding: 40px;
+            text-align: center;
+            background: rgba(30, 15, 5, 0.55);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 25px;
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            box-shadow: 
+                0 8px 32px 0 rgba(74, 44, 10, 0.5),
+                inset 0 1px 0 rgba(255, 215, 0, 0.2);
+            animation: glassFloat 6s ease-in-out infinite;
+        }
+
+        @keyframes glassFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Islamic corner ornaments on card */
+        .slide-content::before,
+        .slide-content::after {
+            content: '❋';
+            position: absolute;
+            color: rgba(255, 215, 0, 0.5);
+            font-size: 1.8em;
+        }
+
+        .slide-content::before {
+            top: 12px;
+            left: 18px;
+        }
+
+        .slide-content::after {
+            bottom: 12px;
+            right: 18px;
+        }
+
+        .saying-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #FFD700, #B8860B);
+            color: #3E1F00;
+            width: 60px;
+            height: 60px;
+            line-height: 60px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            box-shadow: 
+                0 4px 15px rgba(255, 215, 0, 0.5),
+                inset 0 -2px 5px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255, 248, 220, 0.6);
+        }
+
+        .saying-text {
+            font-family: 'Amiri', serif;
+            font-size: 1.9em;
+            color: #FFF8DC;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            font-weight: 700;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .saying-reference {
+            color: #FFD700;
+            font-size: 1em;
+            font-style: italic;
+            margin-bottom: 20px;
+            font-weight: 400;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .saying-category {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(184, 134, 11, 0.25));
+            color: #FFF8DC;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 0.95em;
+            margin-top: 12px;
+            border: 1px solid rgba(255, 215, 0, 0.5);
+            backdrop-filter: blur(5px);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .saying-category i {
+            margin-right: 8px;
+        }
+
+        .slider-controls {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 25px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .slider-btn {
+            pointer-events: all;
+            background: rgba(74, 44, 10, 0.6);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 215, 0, 0.6);
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.4em;
+            color: #FFD700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .slider-btn:hover {
+            background: rgba(255, 215, 0, 0.4);
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.6);
+            color: #3E1F00;
+        }
+
+        .slider-dots {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 85%;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: rgba(255, 248, 220, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 215, 0, 0.5);
+        }
+
+        .dot.active {
+            background: #FFD700;
+            width: 28px;
+            border-radius: 5px;
+            border-color: #FFF8DC;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #FFD700, #FFF8DC, #FFD700);
+            transition: width 0.1s linear;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 25px;
+            background: rgba(74, 44, 10, 0.4);
+            color: #FFF8DC;
+            margin-top: 30px;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 2px solid rgba(255, 215, 0, 0.4);
+        }
+
+        .footer p {
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .slider {
+                height: 500px;
+            }
+            
+            .slide-content {
+                padding: 25px 18px;
+            }
+            
+            .saying-text {
+                font-size: 1.4em;
+            }
+            
+            .slider-controls {
+                padding: 0 10px;
+            }
+            
+            .slider-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 1.2em;
+            }
+
+            .header::before {
+                font-size: 1.4em;
+            }
+            .back-to-app-btn {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin: 5px auto 15px auto;
+                display: inline-flex;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 1s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Decorative corner ornaments */
+        .corner-ornament {
+            position: fixed;
+            color: rgba(74, 44, 10, 0.3);
+            font-size: 4em;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .corner-tl { top: 20px; left: 20px; }
+        .corner-tr { top: 20px; right: 20px; transform: scaleX(-1); }
+        .corner-bl { bottom: 20px; left: 20px; transform: scaleY(-1); }
+        .corner-br { bottom: 20px; right: 20px; transform: scale(-1); }
+
+        /* Radial glow */
+        .glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255, 215, 0, 0.2) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(255, 248, 220, 0.15) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Back to Quran Memorizer Button */
+        .back-to-app-btn {
+            position: absolute;
+            top: 25px;
+            left: 30px;
+            background: rgba(255, 248, 220, 0.05);
+            border: 1.5px solid rgba(255, 215, 0, 0.4);
+            color: #FFF8DC;
+            padding: 8px 18px;
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .back-to-app-btn:hover {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: #FFD700;
+            color: #ffffff;
+            box-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
+            transform: translateY(-2px);
+        }
+
+        .back-to-app-btn:active {
+            transform: translateY(0);
+        }
+
+        .back-to-app-btn i {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="islamic-pattern"></div>
+    <div class="glow"></div>
+    <div class="geometric-shape shape-1"></div>
+    <div class="geometric-shape shape-2"></div>
+    <div class="geometric-shape shape-3"></div>
+    <div class="geometric-shape shape-4"></div>
+    <div class="geometric-shape shape-5"></div>
+    <div class="corner-ornament corner-tl">❦</div>
+    <div class="corner-ornament corner-tr">❦</div>
+    <div class="corner-ornament corner-bl">❦</div>
+    <div class="corner-ornament corner-br">❦</div>
+
+    <div class="header">
+        <a href="index.html" class="back-to-app-btn" title="Back to Quran Memorizer">
+            <i class="fas fa-arrow-left"></i> Back to Quran Memorizer
+        </a>
+        <h1>Sayings of Prophet Muhammad (SAW)</h1>
+        <div class="ornament">✦ ❋ ✦</div>
+        <p>A Collection of Timeless Wisdom & Divine Guidance</p>
+    </div>
+
+    <div class="slider-container">
+        <div class="slider">
+            <div class="progress-bar" id="progressBar"></div>
+            
+            <div class="slider-controls">
+                <button class="slider-btn" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+                <button class="slider-btn" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+            </div>
+
+            <div class="slider-dots" id="sliderDots"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><i class="fas fa-star-and-crescent"></i> Sayings of Prophet Muhammad (SAW) <i class="fas fa-star-and-crescent"></i></p>
+    </div>
+
+    <script>
+        const sayings = [
+            { text: "Each one of you is a caretaker and is responsible for those under his care.", ref: "Muslim: 4828", category: "Responsibility", icon: "fa-users" },
+            { text: "The Lord's Pleasure is in the Parent's Pleasure and the Lord's Anger is in the Parent's Anger.", ref: "At-Tirmidhi: 2020", category: "Parents", icon: "fa-heart" },
+            { text: "Fear God and treat your children fairly and equally.", ref: "Sahih Muslim", category: "Justice", icon: "fa-child" },
+            { text: "If anyone cares for three (or two) daughters, disciplines them, gets them married and does good to them, he will go to Paradise.", ref: "Abu Dawood: 5149", category: "Daughters", icon: "fa-female" },
+            { text: "You will be rewarded for the handful of food you put in your wife's mouth.", ref: "Al-Bukhari: 2742", category: "Kindness", icon: "fa-heart" },
+            { text: "O young people! Whoever among you can marry should marry because it helps him lower his gaze and guard his modesty.", ref: "Al-Bukhari: 1905", category: "Marriage", icon: "fa-ring" },
+            { text: "You and your wealth belong to your father.", ref: "Ibn Majah: 2292", category: "Family", icon: "fa-home" },
+            { text: "Whoever is pleased that he be granted more wealth and that lease of his life be prolonged, then he should keep good relations with his kith and kin.", ref: "Al-Bukhari: 5985", category: "Kinship", icon: "fa-handshake" },
+            { text: "The person who severs the bond of kinship will not enter Paradise.", ref: "Al-Bukhari: 5984", category: "Kinship", icon: "fa-ban" },
+            { text: "If you cook some soup, add extra water and send some to your neighbour.", ref: "Muslim: 6475", category: "Neighbors", icon: "fa-home" },
+            { text: "Whoever believes in God and in the Day of Judgement should entertain his guest generously.", ref: "Muslim: 6475", category: "Hospitality", icon: "fa-utensils" },
+            { text: "Cleanliness invites towards faith, and faith leads its possessor to Paradise.", ref: "At-Tabarani: 35", category: "Purity", icon: "fa-tint" },
+            { text: "Indeed each one of you is the reflection of his brother, so if he sees something harmful in him, then let him remove it from him.", ref: "At-Tirmidhi: 1929", category: "Brotherhood", icon: "fa-user-friends" },
+            { text: "Whoever believes in God and in the Day of Judgment should talk what is good or keep quiet.", ref: "Al-Bukhari: 6476", category: "Speech", icon: "fa-comment" },
+            { text: "Show mercy to those who are on earth, and the One who is above the heavens will show mercy to you.", ref: "Abu Dawood: 4941", category: "Mercy", icon: "fa-hands-helping" },
+            { text: "Let the judge not pass a judgment when he is angry.", ref: "Muslim: 1717", category: "Justice", icon: "fa-balance-scale" },
+            { text: "God has revealed to me that you must be humble towards one another so that no one wrongs anyone else or boasts to anyone else.", ref: "At-Tabarani: 35", category: "Humility", icon: "fa-pray" },
+            { text: "A man follows the way of his close friend, so let one of you look at whom he takes as his close friend.", ref: "Abu Dawood: 4833", category: "Friendship", icon: "fa-user-friends" },
+            { text: "Whoever is deprived of gentleness, he is indeed deprived of all goodness.", ref: "Muslim: 2591", category: "Gentleness", icon: "fa-feather-alt" },
+            { text: "I and the sponsor of an orphan shall be in Paradise like these two.", ref: "At-Tirmidhi: 1914", category: "Orphans", icon: "fa-hand-holding-heart" },
+            { text: "Fulfill the trust for the one who entrusted you, and do not cheat who cheated you.", ref: "At-Tirmidhi: 1264", category: "Trust", icon: "fa-handshake" },
+            { text: "Facilitate things to people, and do not make it hard for them and give them good tidings and do not make them run away.", ref: "Al-Bukhari: 4344", category: "Ease", icon: "fa-smile" },
+            { text: "Whoever calls others to guidance will have reward like that of those who follow it.", ref: "Muslim: 6804", category: "Guidance", icon: "fa-lightbulb" },
+            { text: "Woman may be married for four reasons: for her property, for her family status, for her beauty, for her character. For your prosperity, marry the one who is best in character.", ref: "Al-Bukhari: 5090", category: "Marriage", icon: "fa-ring" },
+            { text: "Do not regard any act of kindness as insignificant, even meeting your brother with a cheerful face.", ref: "Muslim: 6857", category: "Kindness", icon: "fa-smile" },
+            { text: "None of you will have faith till he wishes for his brother what he likes for himself.", ref: "Al-Bukhari: 13", category: "Faith", icon: "fa-star" },
+            { text: "Exchange gifts, as that will lead to increasing your love to one another.", ref: "Al-Bukhari: 12297", category: "Love", icon: "fa-gift" },
+            { text: "Who serves others with drinking water should be the last to drink himself.", ref: "At-Tirmidhi: 1894", category: "Service", icon: "fa-tint" },
+            { text: "Saying something good is charity.", ref: "Muslim: 5934", category: "Charity", icon: "fa-hand-holding-usd" },
+            { text: "May God's mercy be on him who is lenient in his buying, selling and in demanding back his money.", ref: "Al-Bukhari: 2076", category: "Business", icon: "fa-store" },
+            { text: "There are two blessings which many people lose: they are health & free time.", ref: "At-Tirmidhi: 2304", category: "Blessings", icon: "fa-clock" },
+            { text: "God does not look at your appearance and your wealth, rather He looks at your hearts and your deeds.", ref: "Muslim: 6708", category: "Sincerity", icon: "fa-heart" },
+            { text: "Look at the one who is on a lower level than you and do not look at the one who is above you, for that may keep you from scorning the blessings of God.", ref: "Muslim: 7430", category: "Gratitude", icon: "fa-pray" },
+            { text: "Faith consists of more than sixty branches and modesty is a part of faith.", ref: "Al-Bukhari: 9", category: "Faith", icon: "fa-star" },
+            { text: "People, your Lord is One. Know that there is no superiority of an Arab over a non-Arab or of a non-Arab over an Arab, nor of a white over a black or of a black over a white except through piety.", ref: "Musnad Ahmed: 23536", category: "Equality", icon: "fa-equals" },
+            { text: "The best among you are those who have the best manners and the best character.", ref: "Al-Bukhari: 6029", category: "Character", icon: "fa-star" },
+            { text: "The best of your earnings is what you earn by your own hands.", ref: "Ibn Majah: 2290", category: "Work", icon: "fa-briefcase" },
+            { text: "If a young man shows respect to an old man on account of his old age, God will create for him someone who will show him respect too.", ref: "At-Tirmidhi: 2020", category: "Respect", icon: "fa-user" },
+            { text: "Give the worker his wages before his sweat dries.", ref: "Ibn Majah: 2443", category: "Justice", icon: "fa-balance-scale" },
+            { text: "Be in this world as if you were a stranger or a traveler.", ref: "Al-Bukhari: 6416", category: "Detachment", icon: "fa-plane" },
+            { text: "Removing a harmful thing from the way is charity.", ref: "Al-Bukhari: 2989", category: "Charity", icon: "fa-hand-holding-usd" },
+            { text: "If anyone relieves the burden of one who is destitute, God will relieve his burden in this world and in the hereafter.", ref: "Abu Dawood: 4948", category: "Compassion", icon: "fa-hands-helping" },
+            { text: "He who follows a path in quest of knowledge, God will make the path of the Paradise easy to him.", ref: "At-Tirmidhi: 2646", category: "Knowledge", icon: "fa-book" },
+            { text: "Righteousness is good character and sin is that which wavers in your heart and you do not want the people to know about it.", ref: "Muslim: 6680", category: "Righteousness", icon: "fa-check-circle" },
+            { text: "If anyone has land, he should cultivate it or lend it to his brother for cultivation.", ref: "Muslim: 3998", category: "Generosity", icon: "fa-seedling" },
+            { text: "Whoever kills a sparrow or anything bigger than that without a just cause, God will hold him accountable on the Day of Judgment.", ref: "An-Nasa'i: 4349", category: "Animals", icon: "fa-paw" },
+            { text: "Do not withhold excess water to withhold pasturage.", ref: "Al-Bukhari: 2354", category: "Resources", icon: "fa-tint" },
+            { text: "Whoever plants a tree and diligently looks after it until it matures and bears fruit is rewarded.", ref: "Musnad Ahmed: 374", category: "Environment", icon: "fa-tree" },
+            { text: "A woman entered the Hellfire only because of a cat she had tied neither giving it food nor setting it free to eat from the vermin of the earth.", ref: "Al-Bukhari: 2365", category: "Animals", icon: "fa-paw" },
+            { text: "A man saw a dog eating mud from the severity of thirst. So, that man took a shoe and filled it with water and kept on pouring the water for the dog till it quenched its thirst. So God approved of his deed and made him to enter Paradise.", ref: "Al-Bukhari: 2363", category: "Mercy", icon: "fa-heart" },
+            { text: "There is reward for every act of kindness done to a living animal.", ref: "Abu Dawood: 2550", category: "Animals", icon: "fa-paw" },
+            { text: "There is no disease that God has created, except that He also created its treatment.", ref: "Al-Bukhari: 5678", category: "Health", icon: "fa-heartbeat" },
+            { text: "The upper (giving) hand is better than the lower (taking) hand.", ref: "Al-Bukhari: 2750", category: "Generosity", icon: "fa-hand-holding-usd" },
+            { text: "Avoid envy, for envy devours good deeds just as fire devours fuel.", ref: "Abu Dawood: 4905", category: "Envy", icon: "fa-fire" },
+            { text: "The most hated person in the sight of God is the most quarrelsome person.", ref: "Al-Bukhari: 2457", category: "Peace", icon: "fa-dove" },
+            { text: "God does not love the one who speaks harshly.", ref: "Al-Bukhari: 13", category: "Speech", icon: "fa-comment" },
+            { text: "The strong is not the one who overcomes the people by his strength, but the strong is the one who controls himself while in anger.", ref: "Muslim: 6809", category: "Self Control", icon: "fa-brain" },
+            { text: "The worst people in the sight of God on the Day of Resurrection will be the double-faced people who appear to some people with one face and to others with another face.", ref: "Al-Bukhari: 2457", category: "Honesty", icon: "fa-user-check" },
+            { text: "When you are three persons, then two of you should not whisper excluding the third person, for that would grieve him.", ref: "Al-Bukhari: 6290", category: "Manners", icon: "fa-comments" },
+            { text: "If the human being had two valleys of money, he would wish for a third one, for nothing can fill the belly of human being except dust.", ref: "Al-Bukhari: 6436", category: "Contentment", icon: "fa-coins" },
+            { text: "Woe to the one who speaks and tells lies in order to make people laugh; woe to him, woe to him.", ref: "Abu Dawood: 4990", category: "Truth", icon: "fa-check" },
+            { text: "Oppression will be darkness on the Day of Resurrection.", ref: "Al-Bukhari: 2447", category: "Justice", icon: "fa-balance-scale" },
+            { text: "Those who go to extremes are doomed.", ref: "Muslim: 784", category: "Moderation", icon: "fa-balance-scale" },
+            { text: "Eat, drink, wear clothes and give charity without extravagance and without conceit.", ref: "Al-Bukhari: 5783", category: "Moderation", icon: "fa-balance-scale" },
+            { text: "Avoid suspicion, for suspicion is the worst of false tales.", ref: "Al-Bukhari: 2748", category: "Trust", icon: "fa-handshake" },
+            { text: "Do not drink wine, it is the key to all evils.", ref: "Al-Bukhari: 5090", category: "Prohibition", icon: "fa-ban" },
+            { text: "The curse of God is upon the one who offers a bribe and the one who takes it.", ref: "Ibn Majah: 2313", category: "Corruption", icon: "fa-ban" },
+            { text: "Hoarding (to make more profit) is nothing but sin.", ref: "At-Tirmidhi: 1267", category: "Business", icon: "fa-store" },
+            { text: "None of you should wish for death, for if he is a good doer, he may increase his good deeds, and if he is an evil doer, he may repent to God.", ref: "Al-Bukhari: 5673", category: "Life", icon: "fa-heart" },
+            { text: "Whoever commits suicide with anything in this world will be tortured with that same thing on the Day of Resurrection.", ref: "Al-Bukhari: 6047", category: "Prohibition", icon: "fa-ban" },
+            { text: "Three things follow the deceased: his family, his wealth, and his deeds; two of them return and one remains with him. His family and his wealth return, but his deeds remain with him.", ref: "Muslim: 7424", category: "Deeds", icon: "fa-award" },
+            { text: "Strive to do that which will benefit you and seek the help of God.", ref: "Muslim: 6774", category: "Action", icon: "fa-running" },
+            { text: "By One in whose hand there is my life, none shall enter paradise except one who has got good conduct.", ref: "Al-Bukhari", category: "Character", icon: "fa-star" },
+            { text: "Say 'There is no god but One God' and be successful.", ref: "Prophet's Message", category: "Faith", icon: "fa-star" },
+            { text: "O God! Have mercy on them for they know nothing.", ref: "Prophet's Prayer for Ta'if", category: "Forgiveness", icon: "fa-pray" },
+            { text: "Look at those who are inferior to you, do not look at those who are superior to you, it may help you not to belittle what Allah has bestowed upon you.", ref: "Prophet's Teaching", category: "Gratitude", icon: "fa-pray" },
+            { text: "None of you truly believes until I am more beloved to him than his father, his children, and all of mankind.", ref: "Al-Bukhari: 15", category: "Love", icon: "fa-heart" },
+            { text: "The believer is not a slanderer, nor a curser, nor an abuser, nor one who speaks ill of others.", ref: "At-Tirmidhi: 1977", category: "Speech", icon: "fa-comment" },
+            { text: "He who does not thank people does not thank God.", ref: "Abu Dawood: 4811", category: "Gratitude", icon: "fa-pray" },
+            { text: "The Paradise is surrounded by hardships and the Fire is surrounded by luxuries.", ref: "Muslim: 7428", category: "Paradise", icon: "fa-star" },
+            { text: "When a man dies, his deeds come to an end except for three things: ongoing charity, beneficial knowledge, and a righteous child who prays for him.", ref: "Muslim: 4191", category: "Legacy", icon: "fa-seedling" },
+            { text: "The most beloved of people to God are those who are most beneficial to people.", ref: "At-Tabarani", category: "Service", icon: "fa-hands-helping" },
+            { text: "Do not hate one another, do not envy one another, do not turn your backs on one another, and be O servants of God, brothers.", ref: "Muslim: 6580", category: "Brotherhood", icon: "fa-user-friends" },
+            { text: "The Muslim is the one from whose tongue and hand the people are safe, and the Emigrant is the one who refrains from what God has forbidden.", ref: "Al-Bukhari: 10", category: "Character", icon: "fa-shield-alt" },
+            { text: "Verily, actions are judged by intentions, and every person will get the reward according to what he has intended.", ref: "Al-Bukhari: 1", category: "Sincerity", icon: "fa-heart" },
+            { text: "Whoever relieves a believer's distress in this world, God will relieve his distress on the Day of Resurrection.", ref: "Muslim: 6848", category: "Compassion", icon: "fa-hands-helping" },
+            { text: "The parable of the believers in their affection, mercy, and compassion is that of a body. When one limb aches, the whole body reacts with sleeplessness and fever.", ref: "Muslim: 6581", category: "Brotherhood", icon: "fa-user-friends" }
+        ];
+
+        const slider = document.querySelector('.slider');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const dotsContainer = document.getElementById('sliderDots');
+        const progressBar = document.getElementById('progressBar');
+        let currentSlide = 0;
+        let slideInterval;
+        let progressInterval;
+        const slideDuration = 8000;
+
+        // Create slides
+        sayings.forEach((saying, index) => {
+            const slide = document.createElement('div');
+            slide.className = `slide ${index === 0 ? 'active' : ''}`;
+            slide.innerHTML = `
+                <div class="slide-content fade-in">
+                    <span class="saying-number">${index + 1}</span>
+                    <p class="saying-text">"${saying.text}"</p>
+                    <p class="saying-reference">[${saying.ref}]</p>
+                    <span class="saying-category"><i class="fas ${saying.icon}"></i> ${saying.category}</span>
+                </div>
+            `;
+            slider.insertBefore(slide, slider.querySelector('.slider-controls'));
+        });
+
+        const slides = document.querySelectorAll('.slide');
+
+        // Create dots
+        slides.forEach((_, index) => {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            if (index === 0) dot.classList.add('active');
+            dot.addEventListener('click', () => goToSlide(index));
+            dotsContainer.appendChild(dot);
+        });
+
+        const dots = document.querySelectorAll('.dot');
+
+        function updateSlides() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active');
+                dots[index].classList.remove('active');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                    dots[index].classList.add('active');
+                }
+            });
+        }
+
+        function goToSlide(index) {
+            currentSlide = index;
+            updateSlides();
+            resetTimer();
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % slides.length;
+            updateSlides();
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+            updateSlides();
+        }
+
+        function updateProgress() {
+            let width = 0;
+            const interval = 100;
+            const step = 100 / (slideDuration / interval);
+            
+            clearInterval(progressInterval);
+            progressBar.style.width = '0%';
+            
+            progressInterval = setInterval(() => {
+                width += step;
+                progressBar.style.width = width + '%';
+                if (width >= 100) {
+                    clearInterval(progressInterval);
+                }
+            }, interval);
+        }
+
+        function resetTimer() {
+            clearInterval(slideInterval);
+            slideInterval = setInterval(nextSlide, slideDuration);
+            updateProgress();
+        }
+
+        prevBtn.addEventListener('click', () => {
+            prevSlide();
+            resetTimer();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            nextSlide();
+            resetTimer();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                prevSlide();
+                resetTimer();
+            } else if (e.key === 'ArrowRight') {
+                nextSlide();
+                resetTimer();
+            }
+        });
+
+        slider.addEventListener('mouseenter', () => {
+            clearInterval(slideInterval);
+            clearInterval(progressInterval);
+        });
+
+        slider.addEventListener('mouseleave', () => {
+            resetTimer();
+        });
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        slider.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        slider.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchStartX - touchEndX > 50) {
+                nextSlide();
+                resetTimer();
+            }
+            if (touchEndX - touchStartX > 50) {
+                prevSlide();
+                resetTimer();
+            }
+        });
+
+        resetTimer();
+    </script>
+</body>
+</html>

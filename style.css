@@ -5112,6 +5112,51 @@ body.light-mode .how-it-works-btn:hover {
   transform: translateY(0);
 }
 
+/* 📜 Prophet Sayings Button */
+.prophet-sayings-btn {
+  background: rgba(201, 168, 76, 0.08);
+  border: 1.5px solid rgba(201, 168, 76, 0.3);
+  color: var(--gold-light);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+body.light-mode .prophet-sayings-btn {
+  background: rgba(124, 95, 24, 0.06);
+  border: 1.5px solid rgba(124, 95, 24, 0.25);
+  color: var(--gold-dark);
+}
+
+.prophet-sayings-btn:hover {
+  background: rgba(201, 168, 76, 0.2);
+  border-color: var(--gold);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(201, 168, 76, 0.35);
+  transform: translateY(-2px);
+}
+
+body.light-mode .prophet-sayings-btn:hover {
+  background: rgba(124, 95, 24, 0.12);
+  border-color: var(--gold-dark);
+  color: #1a202c;
+  box-shadow: 0 0 10px rgba(124, 95, 24, 0.15);
+}
+
+.prophet-sayings-btn:active {
+  transform: translateY(0);
+}
+
 .how-modal {
   position: fixed;
   top: 0;
