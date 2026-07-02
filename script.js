@@ -5703,19 +5703,18 @@ function stopListening() {
     win.innerHTML = `
       <div class="live-sessions-header" id="liveSessionsHeader">
         <div class="live-sessions-controls">
-          <span class="live-dot live-dot-close" id="liveDotClose" title="Close"></span>
           <span class="live-dot live-dot-minimize" id="liveDotMinimize" title="Minimize"></span>
           <span class="live-dot live-dot-expand" id="liveDotExpand" title="Expand"></span>
         </div>
-        <span class="live-sessions-title">hifznoor-live-session</span>
-        <span style="opacity: 0.5; font-size: 0.65rem;">sys</span>
+        <span class="live-sessions-title">live-stats</span>
+        <button class="live-close-btn" id="liveCloseBtn" title="Close Monitor">&times;</button>
       </div>
       <div class="live-sessions-body">
         <div><span class="live-cmd">root@hifznoor:~$</span> live --stats</div>
-        <div style="margin-top: 6px;">
-          <span class="live-indicator-light"></span>Active users: <span id="liveActiveUsers" class="live-output-accent">...</span>
+        <div style="margin-top: 4px;">
+          <span class="live-indicator-light"></span>Active: <span id="liveActiveUsers" class="live-output-accent">...</span>
         </div>
-        <div style="margin-top: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; font-weight: bold;">
+        <div style="margin-top: 8px; border-bottom: 1px solid rgba(43,217,151,0.15); padding-bottom: 3px; font-weight: bold;">
           Top countries (IP Geo):
         </div>
         <ul class="live-list" id="liveCountryList">
@@ -5735,7 +5734,7 @@ function stopListening() {
       win.classList.remove('minimized');
     });
 
-    const closeBtn = document.getElementById('liveDotClose');
+    const closeBtn = document.getElementById('liveCloseBtn');
     closeBtn.addEventListener('click', () => {
       win.classList.add('hidden');
       restoreBtn.classList.remove('hidden');
