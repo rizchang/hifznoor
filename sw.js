@@ -1,9 +1,10 @@
-const CACHE_NAME = 'hifznoor-cache-v30';
+const CACHE_NAME = 'hifznoor-cache-v31';
 
 const ASSETS = [
   './',
   './index.html',
   './prophet_sayings.html',
+  './static/images/nopic.png',
   './style.css',
   './script.js',
   './quran_english.js',
