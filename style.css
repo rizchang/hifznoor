@@ -5750,3 +5750,212 @@ body.light-mode .feedback-submit-btn {
   background: #10b981 !important;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
+
+/* 🐧 Linux-style Live Sessions Window Widget */
+.live-sessions-window {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  width: 290px;
+  background: rgba(13, 22, 38, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+  color: #a9b7c6;
+  z-index: 9999;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease, opacity 0.3s ease;
+}
+
+body.light-mode .live-sessions-window {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  color: #2d3748;
+}
+
+.live-sessions-header {
+  background: rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  cursor: grab;
+}
+
+.live-sessions-header:active {
+  cursor: grabbing;
+}
+
+body.light-mode .live-sessions-header {
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.live-sessions-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.live-dot:hover {
+  opacity: 0.8;
+}
+
+.live-dot-close {
+  background-color: #ff5f56;
+}
+
+.live-dot-minimize {
+  background-color: #ffbd2e;
+}
+
+.live-dot-expand {
+  background-color: #27c93f;
+}
+
+.live-sessions-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+body.light-mode .live-sessions-title {
+  color: #4a5568;
+  text-shadow: none;
+}
+
+.live-sessions-body {
+  padding: 12px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  max-height: 250px;
+}
+
+.live-sessions-window.minimized .live-sessions-body {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.live-cmd {
+  color: #57a64a;
+}
+
+body.light-mode .live-cmd {
+  color: #2b6cb0;
+}
+
+.live-output-accent {
+  color: var(--gold-light);
+  font-weight: bold;
+}
+
+body.light-mode .live-output-accent {
+  color: var(--gold-dark);
+}
+
+.live-list {
+  list-style-type: none;
+  padding-left: 0;
+  margin-top: 6px;
+}
+
+.live-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+body.light-mode .live-item {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.live-item:last-child {
+  border-bottom: none;
+}
+
+.live-indicator-light {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2bd997;
+  box-shadow: 0 0 8px #2bd997;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: live-pulse 2s infinite;
+}
+
+@keyframes live-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Float widget toggle button for restoration */
+.live-sessions-restore-btn {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  background: rgba(13, 22, 38, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--gold-light);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9998;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+body.light-mode .live-sessions-restore-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--gold-dark);
+}
+
+.live-sessions-restore-btn:hover {
+  transform: scale(1.1);
+  border-color: var(--gold);
+}
+
+.live-sessions-restore-btn.hidden {
+  display: none !important;
+}
+
+/* Adjust responsiveness to avoid blocking elements on mobile */
+@media (max-width: 600px) {
+  .live-sessions-window {
+    top: auto;
+    bottom: 80px;
+    right: 10px;
+    width: 250px;
+  }
+  .live-sessions-restore-btn {
+    top: auto;
+    bottom: 80px;
+    right: 10px;
+  }
+}
